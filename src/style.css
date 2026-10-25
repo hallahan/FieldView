@@ -145,6 +145,12 @@ a { color: var(--accent); }
 .tag.error { background: #ffe3e3; color: #c92a2a; }
 #library-settings summary { padding: 6px 0; }
 #settings-body { display: flex; flex-direction: column; gap: 10px; padding-top: 8px; }
+.connect { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+.connect p { margin: 0; }
+.connect label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+.connect input {
+  padding: 6px 8px; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+}
 .setup-link { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 .map-error { margin: 40px auto; max-width: 420px; padding: 16px; text-align: center; color: var(--muted); }
 
@@ -161,7 +167,7 @@ a { color: var(--accent); }
   .detail-head .close { font-size: 28px; padding: 0 8px; }
   .maplibregl-ctrl-group button { width: 40px; height: 40px; }
   #views button, .actions button, .save-controls button, .inline-form button, #copy-link, select { padding: 11px 14px; }
-  .inline-form input { font-size: 16px; padding: 10px; }
+  .inline-form input, .connect input { font-size: 16px; padding: 10px; }
   #job-list li { padding: 12px 6px; }
   .version-list button { padding: 10px 12px; }
   .repo-list button { font-size: 26px; padding: 0 8px; }

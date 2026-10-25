@@ -6,7 +6,7 @@ A fully client-side web app for viewing Trimble JobXML (`.jxl`) survey files. Op
 - a searchable point list with each point's position, field-captured feature attributes, and every raw attribute in the file
 - metadata about the job: job properties, coordinate system, units, record counts, time span, and bounds
 
-The file is parsed in the browser. It only leaves your machine if you save it to a GitHub repo.
+Opening or dropping a file only shows it; it's parsed in the browser. It leaves your machine only if you tap **Upload** to send it to a GitHub repo.
 
 ## Saving jobs to GitHub
 
@@ -19,9 +19,9 @@ index.geojson                         one Point per job at its centroid, with up
 jobs/<jobName>/<jobName>.jxl          the latest upload of each job
 ```
 
-Saving the same job again overwrites its file, so every field visit is a commit and git history holds the versions. The JXL and the updated index are written in one commit, and an upload identical to the last one is skipped.
+Uploading the same job again overwrites its file, so every field visit is a commit and git history holds the versions. The JXL and the updated index are written in one commit, and an upload identical to the last one is skipped.
 
-Public repos can be browsed without signing in. Saving, and reading private repos, needs a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new) with access to those repos and **Contents: Read and write**. Add repos and the token under **Jobs → Repos and GitHub token**. They're kept in that browser only. **Copy setup link** makes a link that sets up another device, such as the controller, with the same repos (and the token, if you tick the box).
+The first **Upload** on a device asks for the repo and a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new) with access to it and **Contents: Read and write**, checks the token can write there, then uploads. Both are kept in that browser only. Public repos can be browsed without a token. More repos can be added under **Jobs → Repos and GitHub token**. **Copy setup link** makes a link that sets up another device, such as the controller, with the same repos (and the token, if you tick the box).
 
 ## Positions
 

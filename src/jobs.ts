@@ -365,49 +365,99 @@ export function initJobs({ map, open, isSheet, setSheet }: Options) {
     const el = $('#save-row');
     el.hidden = !saveTarget;
     if (!saveTarget) return;
-    if (!settings.repos.length) {
-      el.innerHTML = `<button class="link" data-act="setup">Save jobs to GitHub…</button>`;
-      el.querySelector('button')!.addEventListener('click', () => {
-        ($('#library-settings') as HTMLDetailsElement).open = true;
-        showView('jobs');
-      });
-      return;
-    }
     const slugs = settings.repos.map(repoSlug);
     const origin = saveTarget.origin?.repo;
     const preferred = origin && slugs.includes(origin) ? origin : slugs[0];
     const options = slugs.map((s) => `<option ${s === preferred ? 'selected' : ''}>${esc(s)}</option>`);
     el.innerHTML = `
       <div class="save-controls">
-        <select id="save-repo" ${settings.repos.length < 2 ? 'hidden' : ''}>${options.join('')}</select>
-        <button id="save-btn" class="primary">Save to ${slugs.length < 2 ? esc(preferred) : 'GitHub'}</button>
+        <select id="save-repo" ${slugs.length < 2 ? 'hidden' : ''}>${options.join('')}</select>
+        <button id="save-btn" class="primary">Upload to ${slugs.length === 1 ? esc(preferred) : 'GitHub'}</button>
       </div>
+      <form id="connect-form" class="connect" hidden>
+        <p class="small">Connect to GitHub to upload. This is only needed once on each device.</p>
+        <label>Repo<input id="connect-repo" placeholder="owner/repo" value="${esc(preferred ?? '')}" autocomplete="off" autocapitalize="off" spellcheck="false" /></label>
+        <label>Token<input id="connect-token" type="password" placeholder="github_pat_…" autocomplete="off" /></label>
+        <p class="muted small"><a href="${tokenUrl()}" target="_blank" rel="noopener">Create a token on GitHub</a>: under
+          <em>Repository access</em> pick the repo, and give it <em>Contents: Read and write</em>.
+          The token stays in this browser.</p>
+        <div class="actions">
+          <button type="submit" class="primary">Connect and upload</button>
+          <button type="button" data-act="cancel">Cancel</button>
+        </div>
+      </form>
       <div id="save-status" class="muted"></div>`;
-    el.querySelector('#save-btn')!.addEventListener('click', save);
+    el.querySelector('#save-btn')!.addEventListener('click', () => (connected() ? upload() : showConnect(true)));
+    el.querySelector('[data-act=cancel]')!.addEventListener('click', () => showConnect(false));
+    el.querySelector('#connect-form')!.addEventListener('submit', (e) => {
+      e.preventDefault();
+      connect();
+    });
   }
 
-  async function save() {
+  const connected = () => !!settings.token && settings.repos.length > 0;
+
+  function showConnect(on: boolean) {
+    $('#connect-form').hidden = !on;
+    $('.save-controls').hidden = on;
+    $('#save-status').textContent = '';
+    if (on) ($('#connect-repo') as HTMLInputElement).focus();
+  }
+
+  /** Check the repo and token work before keeping them, then upload. */
+  async function connect() {
+    const status = $('#save-status');
+    const ref = parseRepo($<HTMLInputElement>('#connect-repo').value);
+    const token = $<HTMLInputElement>('#connect-token').value.trim() || settings.token;
+    if (!ref) {
+      status.innerHTML = '<span class="error-text">Enter the repo as owner/repo, for example hallahan/OFVData.</span>';
+      return;
+    }
+    if (!token) {
+      status.innerHTML = '<span class="error-text">Paste a GitHub token.</span>';
+      return;
+    }
+    status.textContent = 'Checking access…';
+    try {
+      const info = await new GitHub(ref, token).info();
+      if (!info.canPush) throw new Error(`This token can read ${repoSlug(ref)} but can't write to it. It needs Contents: Read and write.`);
+    } catch (e) {
+      status.innerHTML = `<span class="error-text">${esc((e as Error).message)}</span>`;
+      return;
+    }
+    settings.token = token;
+    if (!settings.repos.some((r) => repoSlug(r) === repoSlug(ref))) settings.repos.push(ref);
+    saveSettings(settings);
+    renderSettings();
+    renderSaveRow();
+    $<HTMLSelectElement>('#save-repo').value = repoSlug(ref);
+    upload();
+  }
+
+  async function upload() {
     if (!saveTarget) return;
     const slug = $<HTMLSelectElement>('#save-repo').value;
     const btn = $<HTMLButtonElement>('#save-btn');
     const status = $('#save-status');
-    if (!settings.token) {
-      status.innerHTML = '<span class="error-text">Saving needs a GitHub token. Add one under Jobs → Repos and GitHub token.</span>';
-      return;
-    }
     btn.disabled = true;
-    status.textContent = 'Saving…';
+    status.textContent = `Uploading to ${slug}…`;
     try {
       const r = await saveJob(client(slug), saveTarget.text, saveTarget.doc, saveTarget.name);
       status.innerHTML =
         r.status === 'unchanged'
-          ? `Already saved: ${esc(slug)} has this exact file.`
-          : `Saved to <a href="https://github.com/${esc(slug)}/commit/${r.commit}" target="_blank" rel="noopener">${esc(slug)}</a>.`;
+          ? `Already uploaded: ${esc(slug)} has this exact file.`
+          : `Uploaded to <a href="https://github.com/${esc(slug)}/commit/${r.commit}" target="_blank" rel="noopener">${esc(slug)}</a>.`;
       saveTarget.origin = { repo: slug, path: r.path };
       loadedOnce = false; // reload the list next time Jobs is shown
     } catch (e) {
-      const msg = e instanceof GitHubError || e instanceof Error ? e.message : String(e);
-      status.innerHTML = `<span class="error-text">${esc(msg)}</span>`;
+      status.innerHTML = `<span class="error-text">${esc((e as Error).message)}</span>`;
+      // A rejected token goes back to the connect form.
+      if (e instanceof GitHubError && e.status === 401) {
+        settings.token = undefined;
+        saveSettings(settings);
+        showConnect(true);
+        $('#save-status').innerHTML = `<span class="error-text">${esc((e as Error).message)}</span>`;
+      }
     } finally {
       btn.disabled = false;
     }
@@ -431,7 +481,7 @@ export function initJobs({ map, open, isSheet, setSheet }: Options) {
         <button type="submit">Add repo</button>
       </form>
       <p class="muted small">Public repos can be browsed without a token. Saving, and private repos, need a
-        <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">fine-grained token</a>
+        <a href="${tokenUrl()}" target="_blank" rel="noopener">fine-grained token</a>
         with access to those repos and <em>Contents: Read and write</em>. It's kept in this browser only.</p>
       <form id="token-form" class="inline-form">
         <input id="token-input" type="password" placeholder="${settings.token ? 'Token saved. Paste to replace' : 'github_pat_…'}" autocomplete="off" />
@@ -517,6 +567,12 @@ export function initJobs({ map, open, isSheet, setSheet }: Options) {
   if (fromLink) showView('jobs');
 
   return { addLayers, handleClick, setOpenFile, showView, isActive: () => active };
+}
+
+/** GitHub's new-token page, pre-filled where GitHub supports it. */
+function tokenUrl() {
+  const q = new URLSearchParams({ name: 'FieldView', description: 'Upload JXL jobs from FieldView', contents: 'write' });
+  return `https://github.com/settings/personal-access-tokens/new?${q}`;
 }
 
 function formatDate(iso: string, time = false) {
