@@ -6,7 +6,22 @@ A fully client-side web app for viewing Trimble JobXML (`.jxl`) survey files. Op
 - a searchable point list with each point's position, field-captured feature attributes, and every raw attribute in the file
 - metadata about the job: job properties, coordinate system, units, record counts, time span, and bounds
 
-The file is parsed in the browser and never leaves your machine.
+The file is parsed in the browser. It only leaves your machine if you save it to a GitHub repo.
+
+## Saving jobs to GitHub
+
+The **Jobs** tab keeps jobs in one or more GitHub repos, public or private, and shows them as a list and as pins on the map. From a job you can open it in the viewer, download it, or open any earlier version.
+
+A data repo looks like this:
+
+```
+index.geojson                         one Point per job at its centroid, with upload dates and counts
+jobs/<jobName>/<jobName>.jxl          the latest upload of each job
+```
+
+Saving the same job again overwrites its file, so every field visit is a commit and git history holds the versions. The JXL and the updated index are written in one commit, and an upload identical to the last one is skipped.
+
+Public repos can be browsed without signing in. Saving, and reading private repos, needs a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new) with access to those repos and **Contents: Read and write**. Add repos and the token under **Jobs → Repos and GitHub token**. They're kept in that browser only. **Copy setup link** makes a link that sets up another device, such as the controller, with the same repos (and the token, if you tick the box).
 
 ## Positions
 
@@ -33,7 +48,7 @@ Grid values are shown in the job's distance units (US survey feet, international
 ```sh
 npm install
 npm run dev     # local dev server
-npm test        # parser tests
+npm test        # parser and storage tests
 npm run build   # production build into dist/
 ```
 

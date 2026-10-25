@@ -13,53 +13,75 @@
         <button id="sheet-handle" aria-label="Expand or collapse panel"><span></span></button>
         <header>
           <h1>FieldView</h1>
-          <p class="sub">View Trimble JobXML (.jxl) files in the browser. Nothing is uploaded.</p>
+          <p class="sub">View Trimble JobXML (.jxl) files in the browser. Files are only uploaded when you save them to GitHub.</p>
         </header>
 
-        <label id="dropzone" for="file-input">
-          <!-- No accept filter: Android pickers grey out unknown extensions like .jxl. -->
-          <input id="file-input" type="file" hidden />
-          <strong>Open a .jxl file</strong>
-          <span class="drop-hint">or drop it anywhere on the page</span>
-        </label>
-        <button id="sample-btn" class="link">Try a sample file</button>
-
-        <div id="status" role="status"></div>
-        <label id="align-row" class="check" hidden>
-          <input id="align-toggle" type="checkbox" checked />
-          <span>Shift NAD83 to WGS84 to line up with the imagery <span id="align-shift" class="muted"></span></span>
-        </label>
-
-        <section id="projection" hidden>
-          <p><span id="grid-count"></span> points only have grid coordinates. Choose their coordinate system to place them on the map.</p>
-          <form id="proj-form">
-            <input id="proj-input" list="proj-presets" placeholder="EPSG:6419 or +proj=… string" autocomplete="off" />
-            <datalist id="proj-presets"></datalist>
-            <button type="submit">Apply</button>
-          </form>
-        </section>
-
-        <nav id="tabs" hidden>
-          <button data-tab="points" class="active">Points</button>
-          <button data-tab="metadata">Metadata</button>
+        <nav id="views" class="segmented">
+          <button data-view="viewer" class="active">Viewer</button>
+          <button data-view="jobs">Jobs</button>
         </nav>
 
-        <section id="tab-points" class="tab" hidden>
-          <div class="points-tools">
-            <input id="search" type="search" placeholder="Filter: name, code, GNSS, TS" />
-            <div id="color-by" class="segmented" title="Colour points by">
-              <button data-color-by="code" class="active">Code</button>
-              <button data-color-by="type">Type</button>
-            </div>
-          </div>
-          <div id="point-detail" hidden></div>
-          <table id="points-table">
-            <thead><tr><th>Name</th><th>Code</th><th>Type</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </section>
+        <div id="view-viewer" class="view">
+          <label id="dropzone" for="file-input">
+            <!-- No accept filter: Android pickers grey out unknown extensions like .jxl. -->
+            <input id="file-input" type="file" hidden />
+            <strong>Open a .jxl file</strong>
+            <span class="drop-hint">or drop it anywhere on the page</span>
+          </label>
+          <button id="sample-btn" class="link">Try a sample file</button>
 
-        <section id="tab-metadata" class="tab" hidden></section>
+          <div id="status" role="status"></div>
+          <div id="save-row" hidden></div>
+          <label id="align-row" class="check" hidden>
+            <input id="align-toggle" type="checkbox" checked />
+            <span>Shift NAD83 to WGS84 to line up with the imagery <span id="align-shift" class="muted"></span></span>
+          </label>
+
+          <section id="projection" hidden>
+            <p><span id="grid-count"></span> points only have grid coordinates. Choose their coordinate system to place them on the map.</p>
+            <form id="proj-form">
+              <input id="proj-input" list="proj-presets" placeholder="EPSG:6419 or +proj=… string" autocomplete="off" />
+              <datalist id="proj-presets"></datalist>
+              <button type="submit">Apply</button>
+            </form>
+          </section>
+
+          <nav id="tabs" hidden>
+            <button data-tab="points" class="active">Points</button>
+            <button data-tab="metadata">Metadata</button>
+          </nav>
+
+          <section id="tab-points" class="tab" hidden>
+            <div class="points-tools">
+              <input id="search" type="search" placeholder="Filter: name, code, GNSS, TS" />
+              <div id="color-by" class="segmented" title="Colour points by">
+                <button data-color-by="code" class="active">Code</button>
+                <button data-color-by="type">Type</button>
+              </div>
+            </div>
+            <div id="point-detail" hidden></div>
+            <table id="points-table">
+              <thead><tr><th>Name</th><th>Code</th><th>Type</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </section>
+
+          <section id="tab-metadata" class="tab" hidden></section>
+        </div>
+
+        <div id="view-jobs" class="view" hidden>
+          <div class="points-tools">
+            <input id="job-search" type="search" placeholder="Filter jobs" />
+            <select id="job-repo" title="Repo"></select>
+          </div>
+          <div id="jobs-status" role="status"></div>
+          <div id="job-detail" hidden></div>
+          <ul id="job-list"></ul>
+          <details id="library-settings">
+            <summary>Repos and GitHub token</summary>
+            <div id="settings-body"></div>
+          </details>
+        </div>
       </aside>
       <main>
         <div id="map"></div>
