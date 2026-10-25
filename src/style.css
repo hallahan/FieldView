@@ -1,23 +1,41 @@
+/* Bundled OFL fonts, so the controller has them offline. */
+@import '@fontsource-variable/source-serif-4/opsz.css';
+@import '@fontsource-variable/open-sans/wght.css';
+@import '@fontsource-variable/inconsolata/wght.css';
+
 :root {
-  --bg: #ffffff;
-  --fg: #212529;
-  --muted: #868e96;
-  --border: #dee2e6;
-  --panel: #f8f9fa;
-  --accent: #e8590c;
-  --selected: #fff3bf;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  font-size: 14px;
+  --bg: #fffbf0;
+  --fg: #1e1b4b;
+  --muted: #5b6a60;
+  --border: #ddd5c0;
+  --panel: #f5eedb;
+  --accent: #c2410c;
+  --link: #c2410c;
+  --selected: #fde68a;
+  --sage: #98b3a1;
+  --active: #404d45;
+  --on-sage: #1e1b4b;
+  /* Aptos when the device has it installed (Microsoft's licence doesn't allow
+     self-hosting it), otherwise bundled OFL lookalikes. */
+  --font-serif: 'Aptos Serif', 'Source Serif 4 Variable', Georgia, serif;
+  --font-sans: Aptos, 'Open Sans Variable', system-ui, sans-serif;
+  --font-mono: 'Aptos Mono', 'Inconsolata Variable', ui-monospace, monospace;
+  font-family: var(--font-serif);
+  font-size: 15px;
+  line-height: 1.4;
   color: var(--fg);
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #1a1b1e;
-    --fg: #e9ecef;
-    --muted: #909296;
-    --border: #373a40;
-    --panel: #25262b;
+    --bg: #1b211e;
+    --fg: #ece6d6;
+    --muted: #a3b3a8;
+    --border: #3a453f;
+    --panel: #252c28;
+    --link: #f0915a;
     --selected: #5c4813;
+    --active: #98b3a1;
+    --on-sage: #1b211e;
   }
 }
 * { box-sizing: border-box; }
@@ -30,26 +48,26 @@ html, body { margin: 0; height: 100%; background: var(--bg); overscroll-behavior
 }
 main { flex: 1; position: relative; }
 #map { position: absolute; inset: 0; }
-h1 { margin: 0; font-size: 20px; color: var(--accent); }
-h2 { margin: 0; font-size: 16px; }
-h3 { margin: 16px 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
-.sub { margin: 4px 0 0; color: var(--muted); }
+h1 { margin: 0; font-size: 24px; font-weight: 600; line-height: 1.15; color: var(--on-sage); }
+h2 { margin: 0; font-size: 18px; font-weight: 600; }
+h3 { margin: 16px 0 6px; font: 600 12px var(--font-sans); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.sub { margin: 4px 0 0; color: var(--on-sage); opacity: .85; }
 .muted { color: var(--muted); }
 #dropzone {
   display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 18px;
   border: 2px dashed var(--border); border-radius: 8px; cursor: pointer; text-align: center;
 }
 #dropzone:hover { border-color: var(--accent); }
-#dropzone span { color: var(--muted); font-size: 12px; }
+#dropzone span { color: var(--muted); font-size: 13px; }
 /* Once a file is open, shrink the picker to a single row. */
 .loaded #dropzone { flex-direction: row; justify-content: center; padding: 10px; border-style: solid; }
 .loaded #dropzone span, .loaded #sample-btn { display: none; }
 #point-detail { scroll-margin-top: 28px; }
 button { font: inherit; cursor: pointer; }
-button.link { background: none; border: none; color: var(--accent); padding: 0; align-self: flex-start; text-decoration: underline; }
+button.link { background: none; border: none; color: var(--link); padding: 0; align-self: flex-start; text-decoration: underline; }
 #status:empty { display: none; }
 #status { padding: 8px 10px; background: var(--panel); border-radius: 6px; }
-#status.error { background: #ffe3e3; color: #c92a2a; }
+#status.error { background: #ffe3e3; color: #b42318; }
 .check { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
 .check input { margin-top: 3px; width: 16px; height: 16px; flex-shrink: 0; }
 #projection { background: var(--panel); padding: 10px; border-radius: 6px; }
@@ -63,32 +81,32 @@ input[type=search], #proj-input {
 .points-tools { display: flex; gap: 8px; align-items: stretch; }
 .segmented { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; flex-shrink: 0; }
 .segmented button { border: none; background: var(--bg); color: var(--muted); padding: 0 10px; }
-.segmented button.active { background: var(--accent); color: #fff; }
+.segmented button.active { background: var(--active); color: var(--bg); }
 #tabs { display: flex; border-bottom: 1px solid var(--border); }
 #tabs button { flex: 1; padding: 8px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--muted); }
-#tabs button.active { color: var(--fg); border-bottom-color: var(--accent); }
+#tabs button.active { color: var(--fg); font-weight: 600; border-bottom-color: var(--accent); }
 .tab { display: flex; flex-direction: column; gap: 10px; }
 .tab[hidden] { display: none; }
 table { width: 100%; border-collapse: collapse; }
 #points-table th, #points-table td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--border); }
-#points-table th { position: sticky; top: -16px; background: var(--bg); font-size: 12px; color: var(--muted); }
+#points-table th { position: sticky; top: -16px; background: var(--bg); font: 600 12px var(--font-sans); color: var(--muted); }
 #points-table tbody tr { cursor: pointer; }
 #points-table tbody tr:hover { background: var(--panel); }
 #points-table tr.selected { background: var(--selected) !important; }
 #points-table tr.deleted td { text-decoration: line-through; color: var(--muted); }
 .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
 table.kv th, table.kv td { text-align: left; vertical-align: top; padding: 3px 6px; border-bottom: 1px solid var(--border); word-break: break-word; }
-table.kv th { font-weight: 500; color: var(--muted); width: 45%; }
+table.kv th { font-family: var(--font-sans); font-size: 13px; font-weight: 500; color: var(--muted); width: 45%; }
 #point-detail { padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
 .detail-head { display: flex; justify-content: space-between; align-items: center; }
 .detail-head .close { background: none; border: none; font-size: 20px; color: var(--muted); }
-.code { font-size: 12px; font-weight: 500; padding: 1px 6px; border-radius: 4px; background: var(--border); }
-.warn { color: #e67700; margin: 8px 0 0; }
+.code { font-family: var(--font-mono); font-size: 13px; font-weight: 500; padding: 1px 6px; border-radius: 4px; background: var(--border); }
+.warn { color: #b45309; margin: 8px 0 0; }
 details { margin-top: 12px; }
 summary { cursor: pointer; color: var(--muted); }
 #basemap-toggle { position: absolute; top: 10px; left: 10px; display: flex; box-shadow: 0 1px 4px rgba(0,0,0,.3); border-radius: 6px; overflow: hidden; }
-#basemap-toggle button { padding: 6px 12px; border: none; background: #fff; color: #212529; }
-#basemap-toggle button.active { background: var(--accent); color: #fff; }
+#basemap-toggle button { padding: 6px 12px; border: none; background: #fffbf0; color: #1e1b4b; }
+#basemap-toggle button.active { background: #404d45; color: #fff; }
 #drop-overlay {
   position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
   background: rgba(232, 89, 12, .15); border: 4px dashed var(--accent); font-size: 24px; color: var(--accent); pointer-events: none;
@@ -99,7 +117,7 @@ summary { cursor: pointer; color: var(--muted); }
 
 /* Touch screens (phones, the controller): bigger targets, no zoom-on-focus. */
 @media (pointer: coarse) {
-  :root { font-size: 15px; }
+  :root { font-size: 16px; }
   input[type=search], #proj-input { font-size: 16px; padding: 10px; }
   #proj-form button, #tabs button { padding: 12px; }
   #points-table td { padding: 11px 6px; }
@@ -129,4 +147,27 @@ summary { cursor: pointer; color: var(--muted); }
   #sheet-handle span { width: 44px; height: 5px; border-radius: 3px; background: var(--border); }
   header .sub { display: none; }
   #points-table th { top: 21px; }
+}
+
+/* Typography and the theoutpost.io look: serif for reading, sans for
+   controls, mono for coordinates, codes and other values. */
+header { margin: -16px -16px 0; padding: 14px 16px 12px; background: var(--sage); }
+button, input, select, textarea, summary, .segmented, #tabs, #points-table td { font-family: var(--font-sans); }
+#points-table td:nth-child(-n+2), table.kv td, #proj-input { font-family: var(--font-mono); font-size: 15px; font-weight: 450; }
+#points-table td, table.kv td { font-variant-numeric: tabular-nums; }
+#dropzone strong { font-size: 17px; font-weight: 600; }
+#dropzone { background: var(--panel); border-color: var(--border); }
+:focus-visible { outline: 2px solid var(--link); outline-offset: 1px; }
+::selection { background: var(--selected); }
+
+/* Touch screens are often used outdoors: a touch more weight survives glare. */
+@media (pointer: coarse) {
+  :root { font-weight: 450; }
+  #points-table td:nth-child(-n+2), table.kv td, #proj-input { font-size: 16px; font-weight: 500; }
+}
+@media (max-width: 760px) {
+  #sheet-handle { background: var(--sage); }
+  #sheet-handle span { background: var(--active); opacity: .5; }
+  header { margin: -12px -14px 0; padding: 0 14px 10px; }
+  h1 { font-size: 20px; }
 }
