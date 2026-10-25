@@ -58,6 +58,8 @@ export interface JxlDocument {
   /** Points that only have grid coordinates (need a projection to be mapped). */
   gridOnlyCount: number;
   crs: CrsInfo;
+  /** Attributes of the <JOBFile> root: jobName, TimeStamp, controllerSerialNumber, ... */
+  job: Attrs;
 }
 
 export class JxlParseError extends Error {}
@@ -164,7 +166,7 @@ export function parseJxl(text: string, options: ParseOptions = {}): JxlDocument 
 
   const gridOnlyCount = points.filter((p) => p.coords.lat === undefined && p.coords.north !== undefined).length;
 
-  return { points, metadata: metadata(root, points, crs), gridOnlyCount, crs };
+  return { points, metadata: metadata(root, points, crs), gridOnlyCount, crs, job: Object.fromEntries(attrEntries(root)) };
 }
 
 function metadata(root: Element, points: JxlPoint[], crs: CrsInfo): MetadataSection[] {

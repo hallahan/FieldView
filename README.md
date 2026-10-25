@@ -10,7 +10,22 @@ OpenFieldView is a fully client-side web app. Open a `.jxl` file and you get:
 - a searchable point list with each point's position, field-captured feature attributes, and every raw attribute in the file
 - metadata about the job: job properties, coordinate system, units, record counts, time span, and bounds
 
-The file is parsed in the browser and never leaves your machine.
+Opening or dropping a file only shows it; it's parsed in the browser. It leaves your machine only if you tap **Upload** to send it to a GitHub repo.
+
+## Uploading jobs to GitHub
+
+The **Jobs** tab keeps jobs in one or more GitHub repos, public or private, and shows them as a list and as pins on the map. From a job you can open it in the viewer, download it, or open any earlier version.
+
+A data repo looks like this:
+
+```
+index.geojson                         one Point per job at its centroid, with upload dates and counts
+jobs/<jobName>/<jobName>.jxl          the latest upload of each job
+```
+
+Uploading the same job again overwrites its file, so every field visit is a commit and git history holds the versions. The JXL and the updated index are written in one commit, and an upload identical to the last one is skipped.
+
+The first **Upload** on a device asks for the repo and a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new) with access to it and **Contents: Read and write**, checks the token can write there, then uploads. Both are kept in that browser only. Public repos can be browsed without a token. More repos can be added under **Jobs → Repos and GitHub token**. **Copy setup link** makes a link that sets up another device, such as the controller, with the same repos (and the token, if you tick the box).
 
 ## Positions
 
@@ -37,7 +52,7 @@ Grid values are shown in the job's distance units (US survey feet, international
 ```sh
 npm install
 npm run dev     # local dev server
-npm test        # parser tests
+npm test        # parser and storage tests
 npm run build   # production build into dist/
 ```
 

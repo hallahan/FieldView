@@ -5,7 +5,9 @@ import type { FeatureCollection, Point } from 'geojson';
 import { PRESETS } from './crs';
 import { currentEpoch, nad83ToWgs84 } from './datum';
 import { parseJxl, type JxlDocument, type JxlPoint, type ObservationType } from './jxl';
+import { initJobs, type JobOrigin } from './jobs';
 import { projectGrid, resolveProjection } from './projection';
+import { esc, formatBytes } from './util';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
 
@@ -68,11 +70,22 @@ map.addControl(new maplibregl.NavigationControl(), 'top-right');
 map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: true }), 'top-right');
 map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
 
+const jobs = initJobs({
+  map,
+  open: (text, name, size, origin) => {
+    jobs.showView('viewer');
+    load(text, name, size, undefined, origin);
+  },
+  isSheet: () => isSheet(),
+  setSheet: (expanded) => setSheet(expanded),
+});
+
 // Layers are re-added whenever the basemap style is swapped.
 let styleReady = false;
 map.on('style.load', () => {
   styleReady = true;
   addPointLayers();
+  jobs.addLayers();
 });
 
 // If the basemap style itself can't be fetched, fall back to a plain
@@ -91,11 +104,14 @@ map.on('error', (e) => {
 
 function addPointLayers() {
   if (map.getSource('points')) return;
+  // Hidden while the Jobs view shows its pins instead.
+  const layout = { visibility: jobs.isActive() ? 'none' : 'visible' } as const;
   map.addSource('points', { type: 'geojson', data: toGeoJSON() });
   map.addLayer({
     id: 'points-circle',
     type: 'circle',
     source: 'points',
+    layout,
     paint: {
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 3, 16, 7],
       'circle-color': ['get', 'color'],
@@ -108,6 +124,7 @@ function addPointLayers() {
     id: 'points-selected',
     type: 'circle',
     source: 'points',
+    layout,
     filter: ['==', ['get', 'index'], selected ?? -1],
     paint: {
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 7, 16, 12],
@@ -122,6 +139,7 @@ function addPointLayers() {
     source: 'points',
     minzoom: 15,
     layout: {
+      ...layout,
       'text-field': ['get', 'name'],
       'text-font': ['Noto Sans Regular'],
       'text-size': 12,
@@ -136,6 +154,7 @@ function addPointLayers() {
 // exact hit on a small circle.
 const TAP_TOLERANCE = 14;
 map.on('click', (e) => {
+  if (jobs.handleClick(e, TAP_TOLERANCE)) return;
   if (!map.getLayer('points-circle')) return;
   const { x, y } = e.point;
   const hits = map.queryRenderedFeatures(
@@ -208,17 +227,21 @@ async function loadFile(file: File) {
   load(await file.text(), file.name, file.size);
 }
 
-let loaded: { text: string; name: string; size: number } | undefined;
+let loaded: { text: string; name: string; size: number; origin?: JobOrigin } | undefined;
 
-/** Parse and show a file. `gridDef` is a user-chosen projection for grid-only points. */
-function load(text: string, name: string, size: number, gridDef?: { input: string; proj4: string }) {
+/**
+ * Parse and show a file. `gridDef` is a user-chosen projection for grid-only
+ * points; `origin` is the repo it was opened from.
+ */
+function load(text: string, name: string, size: number, gridDef?: { input: string; proj4: string }, origin?: JobOrigin) {
   try {
     doc = parseJxl(text, { proj4: gridDef?.proj4 });
   } catch (e) {
     setStatus((e as Error).message, true);
     return;
   }
-  loaded = { text, name, size };
+  loaded = { text, name, size, origin };
+  jobs.setOpenFile({ doc, text, name, origin });
   selected = undefined;
   document.body.classList.add('loaded');
   $('#dropzone strong').textContent = 'Open another file';
@@ -227,6 +250,7 @@ function load(text: string, name: string, size: number, gridDef?: { input: strin
     entries: [
       ['Name', name],
       ['Size', formatBytes(size)],
+      ...(origin ? [['From', `${origin.repo}${origin.version ? ` at ${origin.version.slice(0, 7)}` : ''}`] as [string, string]] : []),
     ],
   });
   // Place grid-only points straight away when the job's projection is known.
@@ -318,7 +342,7 @@ $('#proj-form').addEventListener('submit', async (e) => {
   try {
     const def = await resolveProjection(input);
     // Re-parse so total station shots from GNSS setups can be reduced too.
-    load(loaded.text, loaded.name, loaded.size, { input, proj4: def });
+    load(loaded.text, loaded.name, loaded.size, { input, proj4: def }, loaded.origin);
   } catch (err) {
     setStatus(`Couldn't use that coordinate system: ${esc((err as Error).message)}`, true);
   }
@@ -520,14 +544,3 @@ document.querySelectorAll<HTMLButtonElement>('#basemap-toggle button').forEach((
   }),
 );
 
-// ---------------------------------------------------------------- utils
-
-function esc(s: string) {
-  return s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-}
-
-function formatBytes(n: number) {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / 1024 ** 2).toFixed(1)} MB`;
-}
