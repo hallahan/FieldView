@@ -58,6 +58,10 @@ input[type=search], #proj-input {
   background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
 }
 #proj-form button { padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); }
+.points-tools { display: flex; gap: 8px; align-items: stretch; }
+.segmented { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; flex-shrink: 0; }
+.segmented button { border: none; background: var(--bg); color: var(--muted); padding: 0 10px; }
+.segmented button.active { background: var(--accent); color: #fff; }
 #tabs { display: flex; border-bottom: 1px solid var(--border); }
 #tabs button { flex: 1; padding: 8px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--muted); }
 #tabs button.active { color: var(--fg); border-bottom-color: var(--accent); }

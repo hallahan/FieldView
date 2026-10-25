@@ -2,26 +2,65 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { PRESETS } from './crs';
 import { ecefToGeodetic, JxlParseError, parseJxl } from './jxl';
+import { projectGrid } from './projection';
 
 const sample = readFileSync(resolve(__dirname, '../public/sample.jxl'), 'utf8');
+const withoutReductions = sample.replace(/<Reductions>[\s\S]*<\/Reductions>/, '');
 
 describe('parseJxl', () => {
-  it('reads reduced points with positions and field book attributes', () => {
+  it('reads reduced points with field book attributes', () => {
     const doc = parseJxl(sample);
-    expect(doc.points.length).toBe(39);
-    expect(doc.points.every((p) => p.coords.source === 'WGS84')).toBe(true);
+    expect(doc.points.length).toBe(29);
     const tree = doc.points.find((p) => p.code === 'TREE')!;
     expect(tree.origin).toBe('Reductions');
     expect(tree.features[0].attributes).toHaveProperty('Species');
-    expect(tree.attributes['FieldBook.Method']).toBe('RTK');
-    expect(doc.metadata.find((s) => s.title === 'Job')!.entries).toContainEqual(['jobName', 'Sample Downtown Topo']);
+    expect(doc.metadata.find((s) => s.title === 'Job')!.entries).toContainEqual(['jobName', 'Walnut Creek Topo (sample)']);
   });
 
-  it('falls back to field book records when there are no reductions', () => {
-    const doc = parseJxl(sample.replace(/<Reductions>[\s\S]*<\/Reductions>/, ''));
-    expect(doc.points.length).toBe(40);
-    expect(doc.points.filter((p) => p.deleted).length).toBe(1);
+  it('classifies GNSS and total station shots in the same job', () => {
+    const doc = parseJxl(sample);
+    expect(doc.points.filter((p) => p.type === 'GNSS').length).toBe(14);
+    expect(doc.points.filter((p) => p.type === 'Total station').length).toBe(15);
+    // Total station reductions only carry grid coordinates.
+    expect(doc.gridOnlyCount).toBe(15);
+  });
+
+  it('reduces total station shots when the file has no Reductions section', () => {
+    const reduced = parseJxl(sample);
+    const raw = parseJxl(withoutReductions);
+    expect(raw.points.length).toBe(30);
+    expect(raw.points.filter((p) => p.deleted).length).toBe(1);
+    for (const p of reduced.points.filter((p) => p.type === 'Total station')) {
+      const r = raw.points.find((q) => q.name === p.name)!;
+      expect(r.coords.reduced).toBe(true);
+      expect(r.coords.north!).toBeCloseTo(p.coords.north!, 3);
+      expect(r.coords.east!).toBeCloseTo(p.coords.east!, 3);
+      // The setup was measured by GNSS, so there's no elevation without a geoid.
+      expect(r.coords.elevation).toBeUndefined();
+    }
+  });
+
+  it('reduces elevations when the setup has a grid elevation', () => {
+    const doc = parseJxl(sample);
+    const cp1 = doc.points.find((p) => p.name === 'CP1')!.coords;
+    // Key the setup in with its grid position instead of a GNSS position.
+    const keyed = withoutReductions.replace(
+      /(<Name>CP1<\/Name>[\s\S]*?)<WGS84>[\s\S]*?<\/WGS84>/,
+      `$1<Grid><North>${cp1.north}</North><East>${cp1.east}</East><Elevation>${cp1.elevation}</Elevation></Grid>`,
+    );
+    const shot = parseJxl(keyed).points.find((p) => p.name === '200')!;
+    const expected = doc.points.find((p) => p.name === '200')!;
+    expect(shot.coords.elevation!).toBeCloseTo(expected.coords.elevation!, 3);
+  });
+
+  it('derives the orientation from the backsight when no correction is stored', () => {
+    const noCorrection = withoutReductions.replace(/<OrientationCorrection>[^<]*<\/OrientationCorrection>/, '');
+    const a = parseJxl(withoutReductions).points.find((p) => p.name === '200')!;
+    const b = parseJxl(noCorrection).points.find((p) => p.name === '200')!;
+    expect(b.coords.north!).toBeCloseTo(a.coords.north!, 3);
+    expect(b.coords.east!).toBeCloseTo(a.coords.east!, 3);
   });
 
   it('converts ECEF and counts grid-only points', () => {
@@ -31,6 +70,7 @@ describe('parseJxl', () => {
     </FieldBook></JOBFile>`;
     const doc = parseJxl(xml);
     expect(doc.points[0].coords.source).toBe('ECEF');
+    expect(doc.points[0].type).toBe('GNSS');
     expect(doc.points[0].coords.lat).toBeCloseTo(37.4, 1);
     expect(doc.gridOnlyCount).toBe(1);
   });
@@ -41,8 +81,45 @@ describe('parseJxl', () => {
   });
 });
 
+describe('coordinate system', () => {
+  it('detects NAD83(2011) California zone 3 and the epoch', () => {
+    const { crs } = parseJxl(sample);
+    expect(crs.preset?.id).toBe('EPSG:6419');
+    expect(crs.epochs).toEqual(['2017.50']);
+    expect(crs.distanceUnits).toBe('USSurveyFeet');
+  });
+
+  it('finds an epoch written into the datum name', () => {
+    const xml = sample
+      .replace(/<ReferenceEpoch>[^<]*<\/ReferenceEpoch>/, '')
+      .replace('<DatumName>NAD 1983 (2011)</DatumName>', '<DatumName>NAD83(2011) Epoch 2025.00</DatumName>');
+    expect(parseJxl(xml).crs.epochs).toEqual(['2025.00']);
+  });
+
+  it.each([
+    ['California Zone 3 0403', true],
+    ['CA Zone III', true],
+    ['Zone 0403', true],
+    ['California 3', true],
+    ['California Zone 4 0404', false],
+    ['California Zone 2 0402', false],
+  ])('matches zone name %s: %s', (zone, ok) => {
+    expect(PRESETS[0].match.test(`US State Plane 1983 ${zone}`)).toBe(ok);
+  });
+
+  it('places grid points where GNSS put them', () => {
+    const doc = parseJxl(sample);
+    const gnss = doc.points.find((p) => p.type === 'GNSS')!;
+    const { lat, lon } = gnss.coords;
+    Object.assign(gnss.coords, { lat: undefined, lon: undefined, source: undefined });
+    projectGrid(doc.points, PRESETS[0].proj4);
+    expect(gnss.coords.lat!).toBeCloseTo(lat!, 8);
+    expect(gnss.coords.lon!).toBeCloseTo(lon!, 8);
+  });
+});
+
 describe('ecefToGeodetic', () => {
-  it('round-trips a known point', () => {
+  it('handles a point on the equator', () => {
     const { lat, lon, height } = ecefToGeodetic(6378137, 0, 0);
     expect(lat).toBeCloseTo(0, 9);
     expect(lon).toBeCloseTo(0, 9);

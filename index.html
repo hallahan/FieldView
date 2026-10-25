@@ -27,9 +27,10 @@
         <div id="status" role="status"></div>
 
         <section id="projection" hidden>
-          <p><span id="grid-count"></span> points only have grid coordinates. Enter their coordinate system to place them on the map.</p>
+          <p><span id="grid-count"></span> points only have grid coordinates. Choose their coordinate system to place them on the map.</p>
           <form id="proj-form">
-            <input id="proj-input" placeholder="EPSG:2229 or +proj=… string" autocomplete="off" />
+            <input id="proj-input" list="proj-presets" placeholder="EPSG:6419 or +proj=… string" autocomplete="off" />
+            <datalist id="proj-presets"></datalist>
             <button type="submit">Apply</button>
           </form>
         </section>
@@ -40,10 +41,16 @@
         </nav>
 
         <section id="tab-points" class="tab" hidden>
-          <input id="search" type="search" placeholder="Filter by name or code" />
+          <div class="points-tools">
+            <input id="search" type="search" placeholder="Filter: name, code, GNSS, TS" />
+            <div id="color-by" class="segmented" title="Colour points by">
+              <button data-color-by="code" class="active">Code</button>
+              <button data-color-by="type">Type</button>
+            </div>
+          </div>
           <div id="point-detail" hidden></div>
           <table id="points-table">
-            <thead><tr><th>Name</th><th>Code</th><th>Source</th></tr></thead>
+            <thead><tr><th>Name</th><th>Code</th><th>Type</th></tr></thead>
             <tbody></tbody>
           </table>
         </section>

@@ -2,7 +2,8 @@ import maplibregl, { type GeoJSONSource, type StyleSpecification } from 'maplibr
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 import type { FeatureCollection, Point } from 'geojson';
-import { parseJxl, type JxlDocument, type JxlPoint } from './jxl';
+import { PRESETS } from './crs';
+import { parseJxl, type JxlDocument, type JxlPoint, type ObservationType } from './jxl';
 import { projectGrid, resolveProjection } from './projection';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
@@ -28,8 +29,17 @@ const BASEMAPS: Record<string, string | StyleSpecification> = {
 
 const PALETTE = ['#e8590c', '#1c7ed6', '#2f9e44', '#ae3ec9', '#f08c00', '#0c8599', '#c2255c', '#5c940d', '#6741d9', '#868e96'];
 
+const TYPE_COLORS: Record<ObservationType, string> = {
+  GNSS: '#1c7ed6',
+  'Total station': '#e8590c',
+  'Keyed in': '#2f9e44',
+  Other: '#868e96',
+};
+const TYPE_SHORT: Record<ObservationType, string> = { GNSS: 'GNSS', 'Total station': 'TS', 'Keyed in': 'Keyed', Other: 'Other' };
+
 let doc: JxlDocument | undefined;
 let selected: number | undefined;
+let colorBy: 'code' | 'type' = 'code';
 
 let map: maplibregl.Map;
 try {
@@ -135,7 +145,7 @@ map.on('mouseenter', 'points-circle', () => (map.getCanvas().style.cursor = 'poi
 map.on('mouseleave', 'points-circle', () => (map.getCanvas().style.cursor = ''));
 
 function toGeoJSON(): FeatureCollection {
-  const colors = codeColors();
+  const color = colorFn();
   return {
     type: 'FeatureCollection',
     features: (doc?.points ?? [])
@@ -143,18 +153,29 @@ function toGeoJSON(): FeatureCollection {
       .map((p) => ({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [p.coords.lon!, p.coords.lat!] },
-        properties: { index: p.index, name: p.name, code: p.code, deleted: p.deleted, color: colors.get(p.code) },
+        properties: { index: p.index, name: p.name, code: p.code, deleted: p.deleted, color: color(p) },
       })),
   };
 }
 
-function codeColors(): Map<string, string> {
+function colorFn(): (p: JxlPoint) => string {
+  if (colorBy === 'type') return (p) => TYPE_COLORS[p.type];
   const counts = new Map<string, number>();
   for (const p of doc?.points ?? []) counts.set(p.code, (counts.get(p.code) ?? 0) + 1);
   const ranked = [...counts.keys()].sort((a, b) => counts.get(b)! - counts.get(a)!);
   // The most common codes get distinct colours; the rest share grey.
-  return new Map(ranked.map((code, i) => [code, PALETTE[Math.min(i, PALETTE.length - 1)]]));
+  const byCode = new Map(ranked.map((code, i) => [code, PALETTE[Math.min(i, PALETTE.length - 1)]]));
+  return (p) => byCode.get(p.code)!;
 }
+
+document.querySelectorAll<HTMLButtonElement>('#color-by button').forEach((b) =>
+  b.addEventListener('click', () => {
+    colorBy = b.dataset.colorBy as typeof colorBy;
+    document.querySelectorAll('#color-by button').forEach((x) => x.classList.toggle('active', x === b));
+    renderTable();
+    refreshMap(false);
+  }),
+);
 
 function refreshMap(fit: boolean) {
   (map.getSource('points') as GeoJSONSource | undefined)?.setData(toGeoJSON());
@@ -172,13 +193,17 @@ async function loadFile(file: File) {
   load(await file.text(), file.name, file.size);
 }
 
-function load(text: string, name: string, size: number) {
+let loaded: { text: string; name: string; size: number } | undefined;
+
+/** Parse and show a file. `gridDef` is a user-chosen projection for grid-only points. */
+function load(text: string, name: string, size: number, gridDef?: { input: string; proj4: string }) {
   try {
-    doc = parseJxl(text);
+    doc = parseJxl(text, { proj4: gridDef?.proj4 });
   } catch (e) {
     setStatus((e as Error).message, true);
     return;
   }
+  loaded = { text, name, size };
   selected = undefined;
   document.body.classList.add('loaded');
   $('#dropzone strong').textContent = 'Open another file';
@@ -189,9 +214,31 @@ function load(text: string, name: string, size: number) {
       ['Size', formatBytes(size)],
     ],
   });
+  // Place grid-only points straight away when the job's projection is known.
+  let projected = 0;
+  let projectionError = '';
+  const projection = gridDef ?? (doc.crs.preset && { input: doc.crs.preset.id, proj4: doc.crs.preset.proj4 });
+  const projectionLabel = gridDef ? gridDef.input : doc.crs.preset?.label;
+  if (doc.gridOnlyCount && projection) {
+    try {
+      projected = projectGrid(doc.points, projection.proj4);
+      $<HTMLInputElement>('#proj-input').value = projection.input;
+    } catch (err) {
+      // For a detected projection, quietly leave it to the user to pick one.
+      if (gridDef) projectionError = `Couldn't use that coordinate system: ${esc((err as Error).message)}`;
+    }
+  }
   const mapped = doc.points.filter((p) => p.coords.lat !== undefined).length;
-  setStatus(`<strong>${esc(name)}</strong>: ${doc.points.length} points, ${mapped} on the map.`);
-  $('#projection').hidden = doc.gridOnlyCount === 0;
+  const types = (['GNSS', 'Total station', 'Keyed in'] as ObservationType[])
+    .map((t) => [t, doc!.points.filter((p) => p.type === t).length] as const)
+    .filter(([, n]) => n)
+    .map(([t, n]) => `${n} ${t === 'GNSS' ? t : t.toLowerCase()}`);
+  setStatus(
+    `<strong>${esc(name)}</strong>: ${doc.points.length} points${types.length ? ` (${types.join(', ')})` : ''}, ${mapped} on the map.` +
+      (projected ? `<br><span class="muted">${projected} grid points placed using ${esc(projectionLabel!)}.</span>` : ''),
+  );
+  const remaining = doc.points.filter((p) => p.coords.lat === undefined && p.coords.north !== undefined).length;
+  $('#projection').hidden = remaining === 0;
   $('#grid-count').textContent = String(doc.gridOnlyCount);
   $('#tabs').hidden = false;
   showTab('points');
@@ -202,6 +249,7 @@ function load(text: string, name: string, size: number) {
   if (map.isStyleLoaded()) addPointLayers();
   setSelectedFilter();
   refreshMap(true);
+  if (projectionError) setStatus(projectionError, true);
 }
 
 function setStatus(html: string, error = false) {
@@ -242,18 +290,17 @@ window.addEventListener('drop', (e) => {
   if (file) loadFile(file);
 });
 
+$('#proj-presets').innerHTML = PRESETS.map((p) => `<option value="${p.id}">${esc(p.label)}</option>`).join('');
+
 $('#proj-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  if (!doc) return;
+  if (!loaded) return;
   const input = $<HTMLInputElement>('#proj-input').value.trim();
   if (!input) return;
   try {
     const def = await resolveProjection(input);
-    const n = projectGrid(doc.points, def);
-    setStatus(`Placed ${n} grid points using ${esc(input)}.`);
-    renderTable();
-    renderDetail();
-    refreshMap(true);
+    // Re-parse so total station shots from GNSS setups can be reduced too.
+    load(loaded.text, loaded.name, loaded.size, { input, proj4: def });
   } catch (err) {
     setStatus(`Couldn't use that coordinate system: ${esc((err as Error).message)}`, true);
   }
@@ -284,14 +331,14 @@ $('#search').addEventListener('input', renderTable);
 function renderTable() {
   if (!doc) return;
   const q = $<HTMLInputElement>('#search').value.trim().toLowerCase();
-  const colors = codeColors();
+  const color = colorFn();
   const rows = doc.points
-    .filter((p) => !q || p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q))
+    .filter((p) => !q || [p.name, p.code, p.type, TYPE_SHORT[p.type]].some((s) => s.toLowerCase().includes(q)))
     .map(
       (p) => `<tr data-index="${p.index}" class="${p.index === selected ? 'selected' : ''} ${p.deleted ? 'deleted' : ''}">
-        <td><span class="swatch" style="background:${colors.get(p.code)}"></span>${esc(p.name)}</td>
+        <td><span class="swatch" style="background:${color(p)}"></span>${esc(p.name)}</td>
         <td>${esc(p.code)}</td>
-        <td>${p.coords.source ?? '<span class="muted">no position</span>'}</td>
+        <td>${TYPE_SHORT[p.type]}${p.coords.lat === undefined ? ' <span class="muted">· no position</span>' : ''}</td>
       </tr>`,
     );
   $('#points-table tbody').innerHTML = rows.join('');
@@ -349,16 +396,27 @@ function renderDetail() {
 function positionEntries(p: JxlPoint): [string, string][] {
   const c = p.coords;
   const out: [string, string][] = [];
+  out.push(['Measured by', p.type]);
+  // Grid values in the job's own units, as the crew saw them.
+  const unit = jobUnit();
+  if (c.north !== undefined) out.push([`North (${unit.label})`, (c.north / unit.metres).toFixed(3)]);
+  if (c.east !== undefined) out.push([`East (${unit.label})`, (c.east / unit.metres).toFixed(3)]);
+  if (c.elevation !== undefined) out.push([`Elevation (${unit.label})`, (c.elevation / unit.metres).toFixed(3)]);
+  if (c.reduced) out.push(['Grid from', 'Reduced from the total station observation by FieldView']);
   if (c.lat !== undefined) {
     out.push(['Latitude', c.lat.toFixed(9)], ['Longitude', c.lon!.toFixed(9)]);
-    if (c.height !== undefined) out.push(['Height (m)', c.height.toFixed(3)]);
-    out.push(['Position from', c.source!]);
+    if (c.height !== undefined) out.push(['Ellipsoid height (m)', c.height.toFixed(3)]);
+    out.push(['Lat/long from', c.source === 'Grid' ? 'Grid coordinates' : c.source!]);
   }
-  if (c.north !== undefined) out.push(['North (m)', c.north.toFixed(3)]);
-  if (c.east !== undefined) out.push(['East (m)', c.east.toFixed(3)]);
-  if (c.elevation !== undefined) out.push(['Elevation (m)', c.elevation.toFixed(3)]);
   out.push(['Record ID', p.id], ['From', p.origin]);
   return out;
+}
+
+function jobUnit(): { label: string; metres: number } {
+  const u = (doc?.crs.distanceUnits ?? '').toLowerCase();
+  if (u.includes('survey')) return { label: 'US ft', metres: 1200 / 3937 };
+  if (u.includes('feet') || u.includes('foot')) return { label: 'ft', metres: 0.3048 };
+  return { label: 'm', metres: 1 };
 }
 
 function renderMetadata() {

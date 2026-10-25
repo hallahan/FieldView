@@ -1,23 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Synthetic sample file for FieldView. Not real survey data. -->
-<JOBFile jobName="Sample Downtown Topo" version="6.00" product="Trimble Access" productVersion="2025.10" TimeStamp="2026-10-21T08:00:00">
+<JOBFile jobName="Walnut Creek Topo (sample)" version="6.00" product="Trimble Access" productVersion="2025.10" TimeStamp="2026-10-21T08:00:00">
   <Environment>
     <Configuration>
       <SoftwareVersion>2025.10</SoftwareVersion>
       <ReceiverType>R12i</ReceiverType>
+      <InstrumentType>S7</InstrumentType>
     </Configuration>
   </Environment>
   <FieldBook>
     <JobPropertiesRecord ID="00000001" TimeStamp="2026-10-21T08:00:00">
       <Reference>FV-0001</Reference>
-      <Description>Sample topographic survey (synthetic data)</Description>
+      <Description>Mixed GNSS and total station topo (synthetic data)</Description>
       <Operator>Field Crew 1</Operator>
       <Notes>Generated for demonstrating FieldView.</Notes>
     </JobPropertiesRecord>
     <CoordinateSystemRecord ID="00000002" TimeStamp="2026-10-21T08:00:00">
       <SystemName>US State Plane 1983</SystemName>
-      <ZoneName>Oregon North 3601</ZoneName>
-      <DatumName>NAD 1983 (Conus)</DatumName>
+      <ZoneName>California Zone 3 0403</ZoneName>
+      <DatumName>NAD 1983 (2011)</DatumName>
+      <ReferenceEpoch>2017.50</ReferenceEpoch>
     </CoordinateSystemRecord>
     <UnitsRecord ID="00000003" TimeStamp="2026-10-21T08:00:00">
       <DistanceUnits>USSurveyFeet</DistanceUnits>
@@ -28,1424 +30,1012 @@
       <Name>R12i Internal</Name>
       <MeasuredHeight>2.0000</MeasuredHeight>
     </AntennaRecord>
-    <PointRecord ID="00000001" TimeStamp="2026-10-21T08:07:13">
-      <Name>1</Name>
+    <PointRecord ID="00000010" TimeStamp="2026-10-21T08:02:14">
+      <Name>CP1</Name>
       <Code>CP</Code>
-      <Method>KeyedIn</Method>
+      <Method>ObservedControl</Method>
       <Classification>Control</Classification>
       <Deleted>false</Deleted>
       <WGS84>
-        <Latitude>45.5224665154</Latitude>
-        <Longitude>-122.6777698687</Longitude>
-        <Height>29.5842</Height>
+        <Latitude>37.9063000000</Latitude>
+        <Longitude>-122.0650000000</Longitude>
+        <Height>8.8500</Height>
       </WGS84>
       <Precision>
-        <Horizontal>0.0114</Horizontal>
-        <Vertical>0.0145</Vertical>
+        <Horizontal>0.0080</Horizontal>
+        <Vertical>0.0332</Vertical>
       </Precision>
+      <QualityControl1>
+        <NumberOfSatellites>21</NumberOfSatellites>
+        <PDOP>1.33</PDOP>
+        <SolutionType>RTK Fixed</SolutionType>
+      </QualityControl1>
       <AntennaID>0000000A</AntennaID>
     </PointRecord>
-    <PointRecord ID="00000002" TimeStamp="2026-10-21T08:14:26">
-      <Name>2</Name>
+    <PointRecord ID="00000011" TimeStamp="2026-10-21T08:04:28">
+      <Name>CP2</Name>
       <Code>CP</Code>
-      <Method>KeyedIn</Method>
+      <Method>ObservedControl</Method>
       <Classification>Control</Classification>
       <Deleted>false</Deleted>
       <WGS84>
-        <Latitude>45.5228638184</Latitude>
-        <Longitude>-122.6751625439</Longitude>
-        <Height>31.2018</Height>
+        <Latitude>37.9079000000</Latitude>
+        <Longitude>-122.0639000000</Longitude>
+        <Height>11.5100</Height>
       </WGS84>
       <Precision>
-        <Horizontal>0.0248</Horizontal>
-        <Vertical>0.0204</Vertical>
+        <Horizontal>0.0168</Horizontal>
+        <Vertical>0.0243</Vertical>
       </Precision>
+      <QualityControl1>
+        <NumberOfSatellites>22</NumberOfSatellites>
+        <PDOP>1.93</PDOP>
+        <SolutionType>RTK Fixed</SolutionType>
+      </QualityControl1>
       <AntennaID>0000000A</AntennaID>
     </PointRecord>
-    <PointRecord ID="00000003" TimeStamp="2026-10-21T08:21:39">
-      <Name>3</Name>
-      <Code>TREE</Code>
-      <Method>RTK</Method>
+    <PointRecord ID="00000012" TimeStamp="2026-10-21T08:06:42">
+      <Name>100</Name>
+      <Code>FH</Code>
+      <Method>TopoPoint</Method>
       <Classification>Normal</Classification>
       <Deleted>false</Deleted>
       <WGS84>
-        <Latitude>45.5231880320</Latitude>
-        <Longitude>-122.6772146155</Longitude>
-        <Height>28.6907</Height>
+        <Latitude>37.9067285508</Latitude>
+        <Longitude>-122.0644726506</Longitude>
+        <Height>11.0514</Height>
       </WGS84>
       <Precision>
-        <Horizontal>0.0287</Horizontal>
-        <Vertical>0.0130</Vertical>
+        <Horizontal>0.0178</Horizontal>
+        <Vertical>0.0176</Vertical>
       </Precision>
+      <QualityControl1>
+        <NumberOfSatellites>22</NumberOfSatellites>
+        <PDOP>1.88</PDOP>
+        <SolutionType>RTK Fixed</SolutionType>
+      </QualityControl1>
       <AntennaID>0000000A</AntennaID>
-      <Features>
-        <Feature Name="TREE">
-          <Attribute><Name>Species</Name><Type>Text</Type><Value>Douglas fir</Value></Attribute>
-          <Attribute><Name>DBH (in)</Name><Type>Numeric</Type><Value>22</Value></Attribute>
-          <Attribute><Name>Condition</Name><Type>Text</Type><Value>Good</Value></Attribute>
-        </Feature>
-      </Features>
     </PointRecord>
-    <PointRecord ID="00000004" TimeStamp="2026-10-21T08:28:52">
-      <Name>4</Name>
-      <Code>EP</Code>
-      <Method>RTK</Method>
+    <PointRecord ID="00000013" TimeStamp="2026-10-21T08:08:56">
+      <Name>101</Name>
+      <Code>FH</Code>
+      <Method>TopoPoint</Method>
       <Classification>Normal</Classification>
       <Deleted>false</Deleted>
       <WGS84>
-        <Latitude>45.5234376527</Latitude>
-        <Longitude>-122.6772671867</Longitude>
-        <Height>29.0870</Height>
+        <Latitude>37.9052616619</Latitude>
+        <Longitude>-122.0644747075</Longitude>
+        <Height>9.8753</Height>
       </WGS84>
       <Precision>
-        <Horizontal>0.0116</Horizontal>
-        <Vertical>0.0230</Vertical>
+        <Horizontal>0.0191</Horizontal>
+        <Vertical>0.0306</Vertical>
       </Precision>
+      <QualityControl1>
+        <NumberOfSatellites>19</NumberOfSatellites>
+        <PDOP>1.66</PDOP>
+        <SolutionType>RTK Fixed</SolutionType>
+      </QualityControl1>
       <AntennaID>0000000A</AntennaID>
     </PointRecord>
-    <PointRecord ID="00000005" TimeStamp="2026-10-21T08:35:05">
-      <Name>5</Name>
-      <Code>EP</Code>
-      <Method>RTK</Method>
-      <Classification>Normal</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5239815720</Latitude>
-        <Longitude>-122.6750250465</Longitude>
-        <Height>31.3941</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0162</Horizontal>
-        <Vertical>0.0441</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-    </PointRecord>
-    <PointRecord ID="00000006" TimeStamp="2026-10-21T08:42:18">
-      <Name>6</Name>
-      <Code>EP</Code>
-      <Method>RTK</Method>
-      <Classification>Normal</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5227097659</Latitude>
-        <Longitude>-122.6768586181</Longitude>
-        <Height>28.9955</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0134</Horizontal>
-        <Vertical>0.0226</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-    </PointRecord>
-    <PointRecord ID="00000007" TimeStamp="2026-10-21T08:49:31">
-      <Name>7</Name>
-      <Code>EP</Code>
-      <Method>RTK</Method>
-      <Classification>Normal</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5241669867</Latitude>
-        <Longitude>-122.6754827748</Longitude>
-        <Height>31.7688</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0265</Horizontal>
-        <Vertical>0.0123</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-    </PointRecord>
-    <PointRecord ID="00000008" TimeStamp="2026-10-21T08:56:44">
-      <Name>8</Name>
+    <PointRecord ID="00000014" TimeStamp="2026-10-21T08:10:10">
+      <Name>102</Name>
       <Code>MH</Code>
-      <Method>RTK</Method>
+      <Method>TopoPoint</Method>
       <Classification>Normal</Classification>
       <Deleted>false</Deleted>
       <WGS84>
-        <Latitude>45.5226006600</Latitude>
-        <Longitude>-122.6758442978</Longitude>
-        <Height>29.2470</Height>
+        <Latitude>37.9070312627</Latitude>
+        <Longitude>-122.0648367287</Longitude>
+        <Height>12.9840</Height>
       </WGS84>
       <Precision>
-        <Horizontal>0.0123</Horizontal>
-        <Vertical>0.0281</Vertical>
+        <Horizontal>0.0189</Horizontal>
+        <Vertical>0.0206</Vertical>
       </Precision>
+      <QualityControl1>
+        <NumberOfSatellites>22</NumberOfSatellites>
+        <PDOP>2.02</PDOP>
+        <SolutionType>RTK Fixed</SolutionType>
+      </QualityControl1>
       <AntennaID>0000000A</AntennaID>
       <Features>
         <Feature Name="MH">
-          <Attribute><Name>Type</Name><Type>Text</Type><Value>Sanitary</Value></Attribute>
-          <Attribute><Name>Rim depth (ft)</Name><Type>Numeric</Type><Value>10.1</Value></Attribute>
+          <Attribute><Name>Type</Name><Type>Text</Type><Value>Storm</Value></Attribute>
+          <Attribute><Name>Rim to invert (ft)</Name><Type>Numeric</Type><Value>8.1</Value></Attribute>
         </Feature>
       </Features>
     </PointRecord>
-    <PointRecord ID="00000009" TimeStamp="2026-10-21T08:03:57">
-      <Name>9</Name>
-      <Code>FH</Code>
-      <Method>RTK</Method>
-      <Classification>Normal</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5225916886</Latitude>
-        <Longitude>-122.6766556083</Longitude>
-        <Height>28.9329</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0137</Horizontal>
-        <Vertical>0.0423</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-    </PointRecord>
-    <PointRecord ID="0000000A" TimeStamp="2026-10-21T09:10:10">
-      <Name>10</Name>
-      <Code>LP</Code>
-      <Method>RTK</Method>
-      <Classification>Normal</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5220945811</Latitude>
-        <Longitude>-122.6766194568</Longitude>
-        <Height>31.9899</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0194</Horizontal>
-        <Vertical>0.0366</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-    </PointRecord>
-    <PointRecord ID="0000000B" TimeStamp="2026-10-21T09:17:23">
-      <Name>11</Name>
-      <Code>BLDG</Code>
-      <Method>RTK</Method>
-      <Classification>Normal</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5235821089</Latitude>
-        <Longitude>-122.6776357992</Longitude>
-        <Height>30.6951</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0095</Horizontal>
-        <Vertical>0.0467</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-    </PointRecord>
-    <PointRecord ID="0000000C" TimeStamp="2026-10-21T09:24:36">
-      <Name>12</Name>
-      <Code>BLDG</Code>
-      <Method>RTK</Method>
-      <Classification>Normal</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5234240459</Latitude>
-        <Longitude>-122.6766883137</Longitude>
-        <Height>28.7348</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0176</Horizontal>
-        <Vertical>0.0344</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-    </PointRecord>
-    <PointRecord ID="0000000D" TimeStamp="2026-10-21T09:31:49">
-      <Name>13</Name>
-      <Code>CP</Code>
-      <Method>KeyedIn</Method>
-      <Classification>Control</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5234226372</Latitude>
-        <Longitude>-122.6774641210</Longitude>
-        <Height>29.2941</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0265</Horizontal>
-        <Vertical>0.0389</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-    </PointRecord>
-    <PointRecord ID="0000000E" TimeStamp="2026-10-21T09:38:02">
-      <Name>14</Name>
+    <PointRecord ID="00000015" TimeStamp="2026-10-21T08:12:24">
+      <Name>103</Name>
       <Code>TREE</Code>
-      <Method>RTK</Method>
+      <Method>TopoPoint</Method>
       <Classification>Normal</Classification>
       <Deleted>false</Deleted>
       <WGS84>
-        <Latitude>45.5225659491</Latitude>
-        <Longitude>-122.6762369585</Longitude>
-        <Height>31.4484</Height>
+        <Latitude>37.9059846202</Latitude>
+        <Longitude>-122.0636133102</Longitude>
+        <Height>10.5016</Height>
       </WGS84>
       <Precision>
-        <Horizontal>0.0144</Horizontal>
-        <Vertical>0.0130</Vertical>
+        <Horizontal>0.0168</Horizontal>
+        <Vertical>0.0322</Vertical>
       </Precision>
+      <QualityControl1>
+        <NumberOfSatellites>18</NumberOfSatellites>
+        <PDOP>1.40</PDOP>
+        <SolutionType>RTK Fixed</SolutionType>
+      </QualityControl1>
       <AntennaID>0000000A</AntennaID>
       <Features>
         <Feature Name="TREE">
-          <Attribute><Name>Species</Name><Type>Text</Type><Value>Douglas fir</Value></Attribute>
-          <Attribute><Name>DBH (in)</Name><Type>Numeric</Type><Value>27</Value></Attribute>
-          <Attribute><Name>Condition</Name><Type>Text</Type><Value>Good</Value></Attribute>
-        </Feature>
-      </Features>
-    </PointRecord>
-    <PointRecord ID="0000000F" TimeStamp="2026-10-21T09:45:15">
-      <Name>15</Name>
-      <Code>TREE</Code>
-      <Method>RTK</Method>
-      <Classification>Normal</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5227570017</Latitude>
-        <Longitude>-122.6778356469</Longitude>
-        <Height>31.8579</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0151</Horizontal>
-        <Vertical>0.0242</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-      <Features>
-        <Feature Name="TREE">
-          <Attribute><Name>Species</Name><Type>Text</Type><Value>Bigleaf maple</Value></Attribute>
-          <Attribute><Name>DBH (in)</Name><Type>Numeric</Type><Value>26</Value></Attribute>
-          <Attribute><Name>Condition</Name><Type>Text</Type><Value>Good</Value></Attribute>
-        </Feature>
-      </Features>
-    </PointRecord>
-    <PointRecord ID="00000010" TimeStamp="2026-10-21T09:52:28">
-      <Name>16</Name>
-      <Code>TREE</Code>
-      <Method>RTK</Method>
-      <Classification>Normal</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5222669831</Latitude>
-        <Longitude>-122.6760138477</Longitude>
-        <Height>31.4455</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0216</Horizontal>
-        <Vertical>0.0460</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-      <Features>
-        <Feature Name="TREE">
-          <Attribute><Name>Species</Name><Type>Text</Type><Value>Oregon white oak</Value></Attribute>
-          <Attribute><Name>DBH (in)</Name><Type>Numeric</Type><Value>10</Value></Attribute>
+          <Attribute><Name>Species</Name><Type>Text</Type><Value>Coast live oak</Value></Attribute>
+          <Attribute><Name>DBH (in)</Name><Type>Numeric</Type><Value>14</Value></Attribute>
           <Attribute><Name>Condition</Name><Type>Text</Type><Value>Fair</Value></Attribute>
         </Feature>
       </Features>
     </PointRecord>
-    <PointRecord ID="00000011" TimeStamp="2026-10-21T09:59:41">
-      <Name>17</Name>
+    <PointRecord ID="00000016" TimeStamp="2026-10-21T08:14:38">
+      <Name>104</Name>
       <Code>EP</Code>
-      <Method>RTK</Method>
+      <Method>TopoPoint</Method>
       <Classification>Normal</Classification>
-      <Deleted>true</Deleted>
+      <Deleted>false</Deleted>
       <WGS84>
-        <Latitude>45.5226007888</Latitude>
-        <Longitude>-122.6772998484</Longitude>
-        <Height>30.3952</Height>
+        <Latitude>37.9066264035</Latitude>
+        <Longitude>-122.0653670937</Longitude>
+        <Height>7.9506</Height>
       </WGS84>
       <Precision>
-        <Horizontal>0.0115</Horizontal>
-        <Vertical>0.0338</Vertical>
+        <Horizontal>0.0189</Horizontal>
+        <Vertical>0.0133</Vertical>
       </Precision>
+      <QualityControl1>
+        <NumberOfSatellites>22</NumberOfSatellites>
+        <PDOP>1.48</PDOP>
+        <SolutionType>RTK Fixed</SolutionType>
+      </QualityControl1>
       <AntennaID>0000000A</AntennaID>
     </PointRecord>
-    <PointRecord ID="00000012" TimeStamp="2026-10-21T09:06:54">
-      <Name>18</Name>
+    <PointRecord ID="00000017" TimeStamp="2026-10-21T08:16:52">
+      <Name>105</Name>
       <Code>EP</Code>
-      <Method>RTK</Method>
+      <Method>TopoPoint</Method>
       <Classification>Normal</Classification>
       <Deleted>false</Deleted>
       <WGS84>
-        <Latitude>45.5227719796</Latitude>
-        <Longitude>-122.6766446869</Longitude>
-        <Height>29.4608</Height>
+        <Latitude>37.9078730436</Latitude>
+        <Longitude>-122.0650494935</Longitude>
+        <Height>7.7589</Height>
       </WGS84>
       <Precision>
-        <Horizontal>0.0257</Horizontal>
-        <Vertical>0.0499</Vertical>
+        <Horizontal>0.0129</Horizontal>
+        <Vertical>0.0185</Vertical>
       </Precision>
+      <QualityControl1>
+        <NumberOfSatellites>22</NumberOfSatellites>
+        <PDOP>1.57</PDOP>
+        <SolutionType>RTK Fixed</SolutionType>
+      </QualityControl1>
       <AntennaID>0000000A</AntennaID>
     </PointRecord>
-    <PointRecord ID="00000013" TimeStamp="2026-10-21T09:13:07">
-      <Name>19</Name>
-      <Code>EP</Code>
-      <Method>RTK</Method>
-      <Classification>Normal</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5232714938</Latitude>
-        <Longitude>-122.6766941543</Longitude>
-        <Height>28.8289</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0282</Horizontal>
-        <Vertical>0.0163</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-    </PointRecord>
-    <PointRecord ID="00000014" TimeStamp="2026-10-21T10:20:20">
-      <Name>20</Name>
-      <Code>EP</Code>
-      <Method>RTK</Method>
-      <Classification>Normal</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5220493021</Latitude>
-        <Longitude>-122.6757412115</Longitude>
-        <Height>30.3821</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0294</Horizontal>
-        <Vertical>0.0350</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-    </PointRecord>
-    <PointRecord ID="00000015" TimeStamp="2026-10-21T10:27:33">
-      <Name>21</Name>
-      <Code>MH</Code>
-      <Method>RTK</Method>
-      <Classification>Normal</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5232109521</Latitude>
-        <Longitude>-122.6762354718</Longitude>
-        <Height>29.2857</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0264</Horizontal>
-        <Vertical>0.0231</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-      <Features>
-        <Feature Name="MH">
-          <Attribute><Name>Type</Name><Type>Text</Type><Value>Sanitary</Value></Attribute>
-          <Attribute><Name>Rim depth (ft)</Name><Type>Numeric</Type><Value>4.3</Value></Attribute>
-        </Feature>
-      </Features>
-    </PointRecord>
-    <PointRecord ID="00000016" TimeStamp="2026-10-21T10:34:46">
-      <Name>22</Name>
-      <Code>FH</Code>
-      <Method>RTK</Method>
-      <Classification>Normal</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5242925738</Latitude>
-        <Longitude>-122.6760148410</Longitude>
-        <Height>28.8010</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0124</Horizontal>
-        <Vertical>0.0287</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-    </PointRecord>
-    <PointRecord ID="00000017" TimeStamp="2026-10-21T10:41:59">
-      <Name>23</Name>
-      <Code>LP</Code>
-      <Method>RTK</Method>
-      <Classification>Normal</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5230806528</Latitude>
-        <Longitude>-122.6773990032</Longitude>
-        <Height>29.7740</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0222</Horizontal>
-        <Vertical>0.0283</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-    </PointRecord>
-    <PointRecord ID="00000018" TimeStamp="2026-10-21T10:48:12">
-      <Name>24</Name>
-      <Code>BLDG</Code>
-      <Method>RTK</Method>
-      <Classification>Normal</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5224177275</Latitude>
-        <Longitude>-122.6774993277</Longitude>
-        <Height>28.1472</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0136</Horizontal>
-        <Vertical>0.0320</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-    </PointRecord>
-    <PointRecord ID="00000019" TimeStamp="2026-10-21T10:55:25">
-      <Name>25</Name>
-      <Code>BLDG</Code>
-      <Method>RTK</Method>
-      <Classification>Normal</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5237535574</Latitude>
-        <Longitude>-122.6767651689</Longitude>
-        <Height>29.0467</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0152</Horizontal>
-        <Vertical>0.0459</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-    </PointRecord>
-    <PointRecord ID="0000001A" TimeStamp="2026-10-21T10:02:38">
-      <Name>26</Name>
-      <Code>CP</Code>
-      <Method>KeyedIn</Method>
-      <Classification>Control</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5226548401</Latitude>
-        <Longitude>-122.6777260608</Longitude>
-        <Height>30.2788</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0292</Horizontal>
-        <Vertical>0.0368</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-    </PointRecord>
-    <PointRecord ID="0000001B" TimeStamp="2026-10-21T10:09:51">
-      <Name>27</Name>
+    <PointRecord ID="00000018" TimeStamp="2026-10-21T08:18:06">
+      <Name>106</Name>
       <Code>TREE</Code>
-      <Method>RTK</Method>
+      <Method>TopoPoint</Method>
       <Classification>Normal</Classification>
       <Deleted>false</Deleted>
       <WGS84>
-        <Latitude>45.5239901555</Latitude>
-        <Longitude>-122.6758044721</Longitude>
-        <Height>28.1620</Height>
+        <Latitude>37.9078194844</Latitude>
+        <Longitude>-122.0652433549</Longitude>
+        <Height>12.6411</Height>
       </WGS84>
       <Precision>
-        <Horizontal>0.0126</Horizontal>
-        <Vertical>0.0452</Vertical>
+        <Horizontal>0.0156</Horizontal>
+        <Vertical>0.0266</Vertical>
       </Precision>
+      <QualityControl1>
+        <NumberOfSatellites>24</NumberOfSatellites>
+        <PDOP>1.66</PDOP>
+        <SolutionType>RTK Fixed</SolutionType>
+      </QualityControl1>
       <AntennaID>0000000A</AntennaID>
       <Features>
         <Feature Name="TREE">
-          <Attribute><Name>Species</Name><Type>Text</Type><Value>Bigleaf maple</Value></Attribute>
-          <Attribute><Name>DBH (in)</Name><Type>Numeric</Type><Value>11</Value></Attribute>
+          <Attribute><Name>Species</Name><Type>Text</Type><Value>Valley oak</Value></Attribute>
+          <Attribute><Name>DBH (in)</Name><Type>Numeric</Type><Value>24</Value></Attribute>
+          <Attribute><Name>Condition</Name><Type>Text</Type><Value>Good</Value></Attribute>
+        </Feature>
+      </Features>
+    </PointRecord>
+    <PointRecord ID="00000019" TimeStamp="2026-10-21T08:20:20">
+      <Name>107</Name>
+      <Code>FH</Code>
+      <Method>TopoPoint</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <WGS84>
+        <Latitude>37.9079187178</Latitude>
+        <Longitude>-122.0654511449</Longitude>
+        <Height>11.5576</Height>
+      </WGS84>
+      <Precision>
+        <Horizontal>0.0110</Horizontal>
+        <Vertical>0.0255</Vertical>
+      </Precision>
+      <QualityControl1>
+        <NumberOfSatellites>22</NumberOfSatellites>
+        <PDOP>1.46</PDOP>
+        <SolutionType>RTK Fixed</SolutionType>
+      </QualityControl1>
+      <AntennaID>0000000A</AntennaID>
+    </PointRecord>
+    <PointRecord ID="0000001A" TimeStamp="2026-10-21T08:22:34">
+      <Name>108</Name>
+      <Code>EP</Code>
+      <Method>TopoPoint</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <WGS84>
+        <Latitude>37.9074841633</Latitude>
+        <Longitude>-122.0638163041</Longitude>
+        <Height>7.3775</Height>
+      </WGS84>
+      <Precision>
+        <Horizontal>0.0178</Horizontal>
+        <Vertical>0.0138</Vertical>
+      </Precision>
+      <QualityControl1>
+        <NumberOfSatellites>23</NumberOfSatellites>
+        <PDOP>1.27</PDOP>
+        <SolutionType>RTK Fixed</SolutionType>
+      </QualityControl1>
+      <AntennaID>0000000A</AntennaID>
+    </PointRecord>
+    <PointRecord ID="0000001B" TimeStamp="2026-10-21T08:24:48">
+      <Name>109</Name>
+      <Code>TREE</Code>
+      <Method>TopoPoint</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <WGS84>
+        <Latitude>37.9055327585</Latitude>
+        <Longitude>-122.0652458371</Longitude>
+        <Height>10.7504</Height>
+      </WGS84>
+      <Precision>
+        <Horizontal>0.0097</Horizontal>
+        <Vertical>0.0332</Vertical>
+      </Precision>
+      <QualityControl1>
+        <NumberOfSatellites>29</NumberOfSatellites>
+        <PDOP>2.08</PDOP>
+        <SolutionType>RTK Fixed</SolutionType>
+      </QualityControl1>
+      <AntennaID>0000000A</AntennaID>
+      <Features>
+        <Feature Name="TREE">
+          <Attribute><Name>Species</Name><Type>Text</Type><Value>Redwood</Value></Attribute>
+          <Attribute><Name>DBH (in)</Name><Type>Numeric</Type><Value>12</Value></Attribute>
           <Attribute><Name>Condition</Name><Type>Text</Type><Value>Fair</Value></Attribute>
         </Feature>
       </Features>
     </PointRecord>
-    <PointRecord ID="0000001C" TimeStamp="2026-10-21T10:16:04">
-      <Name>28</Name>
-      <Code>TREE</Code>
-      <Method>RTK</Method>
-      <Classification>Normal</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5240594285</Latitude>
-        <Longitude>-122.6751413524</Longitude>
-        <Height>29.3464</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0149</Horizontal>
-        <Vertical>0.0280</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-      <Features>
-        <Feature Name="TREE">
-          <Attribute><Name>Species</Name><Type>Text</Type><Value>Oregon white oak</Value></Attribute>
-          <Attribute><Name>DBH (in)</Name><Type>Numeric</Type><Value>36</Value></Attribute>
-          <Attribute><Name>Condition</Name><Type>Text</Type><Value>Poor</Value></Attribute>
-        </Feature>
-      </Features>
-    </PointRecord>
-    <PointRecord ID="0000001D" TimeStamp="2026-10-21T10:23:17">
-      <Name>29</Name>
-      <Code>TREE</Code>
-      <Method>RTK</Method>
-      <Classification>Normal</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5224165712</Latitude>
-        <Longitude>-122.6755355287</Longitude>
-        <Height>31.2044</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0096</Horizontal>
-        <Vertical>0.0489</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-      <Features>
-        <Feature Name="TREE">
-          <Attribute><Name>Species</Name><Type>Text</Type><Value>Bigleaf maple</Value></Attribute>
-          <Attribute><Name>DBH (in)</Name><Type>Numeric</Type><Value>31</Value></Attribute>
-          <Attribute><Name>Condition</Name><Type>Text</Type><Value>Fair</Value></Attribute>
-        </Feature>
-      </Features>
-    </PointRecord>
-    <PointRecord ID="0000001E" TimeStamp="2026-10-21T11:30:30">
-      <Name>30</Name>
-      <Code>EP</Code>
-      <Method>RTK</Method>
-      <Classification>Normal</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5242082572</Latitude>
-        <Longitude>-122.6759612740</Longitude>
-        <Height>28.1782</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0278</Horizontal>
-        <Vertical>0.0169</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-    </PointRecord>
-    <PointRecord ID="0000001F" TimeStamp="2026-10-21T11:37:43">
-      <Name>31</Name>
-      <Code>EP</Code>
-      <Method>RTK</Method>
-      <Classification>Normal</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5242244839</Latitude>
-        <Longitude>-122.6759649923</Longitude>
-        <Height>28.2419</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0117</Horizontal>
-        <Vertical>0.0361</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-    </PointRecord>
-    <PointRecord ID="00000020" TimeStamp="2026-10-21T11:44:56">
-      <Name>32</Name>
-      <Code>EP</Code>
-      <Method>RTK</Method>
-      <Classification>Normal</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5232660942</Latitude>
-        <Longitude>-122.6757112174</Longitude>
-        <Height>31.7099</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0128</Horizontal>
-        <Vertical>0.0121</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-    </PointRecord>
-    <PointRecord ID="00000021" TimeStamp="2026-10-21T11:51:09">
-      <Name>33</Name>
-      <Code>EP</Code>
-      <Method>RTK</Method>
-      <Classification>Normal</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5241136688</Latitude>
-        <Longitude>-122.6780580471</Longitude>
-        <Height>31.5057</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0105</Horizontal>
-        <Vertical>0.0428</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-    </PointRecord>
-    <PointRecord ID="00000022" TimeStamp="2026-10-21T11:58:22">
-      <Name>34</Name>
+    <PointRecord ID="0000001C" TimeStamp="2026-10-21T08:26:02">
+      <Name>110</Name>
       <Code>MH</Code>
-      <Method>RTK</Method>
+      <Method>TopoPoint</Method>
       <Classification>Normal</Classification>
       <Deleted>false</Deleted>
       <WGS84>
-        <Latitude>45.5237791274</Latitude>
-        <Longitude>-122.6752907908</Longitude>
-        <Height>30.2024</Height>
+        <Latitude>37.9073833835</Latitude>
+        <Longitude>-122.0658635666</Longitude>
+        <Height>6.6734</Height>
       </WGS84>
       <Precision>
-        <Horizontal>0.0124</Horizontal>
-        <Vertical>0.0375</Vertical>
+        <Horizontal>0.0110</Horizontal>
+        <Vertical>0.0137</Vertical>
       </Precision>
+      <QualityControl1>
+        <NumberOfSatellites>18</NumberOfSatellites>
+        <PDOP>1.78</PDOP>
+        <SolutionType>RTK Fixed</SolutionType>
+      </QualityControl1>
       <AntennaID>0000000A</AntennaID>
       <Features>
         <Feature Name="MH">
-          <Attribute><Name>Type</Name><Type>Text</Type><Value>Sanitary</Value></Attribute>
-          <Attribute><Name>Rim depth (ft)</Name><Type>Numeric</Type><Value>11.0</Value></Attribute>
+          <Attribute><Name>Type</Name><Type>Text</Type><Value>Storm</Value></Attribute>
+          <Attribute><Name>Rim to invert (ft)</Name><Type>Numeric</Type><Value>9.4</Value></Attribute>
         </Feature>
       </Features>
     </PointRecord>
-    <PointRecord ID="00000023" TimeStamp="2026-10-21T11:05:35">
-      <Name>35</Name>
-      <Code>FH</Code>
-      <Method>RTK</Method>
+    <PointRecord ID="0000001D" TimeStamp="2026-10-21T08:28:16">
+      <Name>111</Name>
+      <Code>TREE</Code>
+      <Method>TopoPoint</Method>
       <Classification>Normal</Classification>
       <Deleted>false</Deleted>
       <WGS84>
-        <Latitude>45.5226935435</Latitude>
-        <Longitude>-122.6752463999</Longitude>
-        <Height>31.0943</Height>
+        <Latitude>37.9058141457</Latitude>
+        <Longitude>-122.0638009044</Longitude>
+        <Height>8.2461</Height>
       </WGS84>
       <Precision>
-        <Horizontal>0.0184</Horizontal>
-        <Vertical>0.0320</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-    </PointRecord>
-    <PointRecord ID="00000024" TimeStamp="2026-10-21T11:12:48">
-      <Name>36</Name>
-      <Code>LP</Code>
-      <Method>RTK</Method>
-      <Classification>Normal</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5219633443</Latitude>
-        <Longitude>-122.6779906139</Longitude>
-        <Height>30.3779</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0188</Horizontal>
-        <Vertical>0.0449</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-    </PointRecord>
-    <PointRecord ID="00000025" TimeStamp="2026-10-21T11:19:01">
-      <Name>37</Name>
-      <Code>BLDG</Code>
-      <Method>RTK</Method>
-      <Classification>Normal</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5233595004</Latitude>
-        <Longitude>-122.6776559625</Longitude>
-        <Height>29.4503</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0249</Horizontal>
-        <Vertical>0.0319</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-    </PointRecord>
-    <PointRecord ID="00000026" TimeStamp="2026-10-21T11:26:14">
-      <Name>38</Name>
-      <Code>BLDG</Code>
-      <Method>RTK</Method>
-      <Classification>Normal</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5219253230</Latitude>
-        <Longitude>-122.6754193953</Longitude>
-        <Height>31.3102</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0099</Horizontal>
+        <Horizontal>0.0125</Horizontal>
         <Vertical>0.0326</Vertical>
       </Precision>
-      <AntennaID>0000000A</AntennaID>
-    </PointRecord>
-    <PointRecord ID="00000027" TimeStamp="2026-10-21T11:33:27">
-      <Name>39</Name>
-      <Code>CP</Code>
-      <Method>KeyedIn</Method>
-      <Classification>Control</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5228147793</Latitude>
-        <Longitude>-122.6755803601</Longitude>
-        <Height>29.2447</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0131</Horizontal>
-        <Vertical>0.0305</Vertical>
-      </Precision>
-      <AntennaID>0000000A</AntennaID>
-    </PointRecord>
-    <PointRecord ID="00000028" TimeStamp="2026-10-21T12:40:40">
-      <Name>40</Name>
-      <Code>TREE</Code>
-      <Method>RTK</Method>
-      <Classification>Normal</Classification>
-      <Deleted>false</Deleted>
-      <WGS84>
-        <Latitude>45.5242190687</Latitude>
-        <Longitude>-122.6777956171</Longitude>
-        <Height>28.4578</Height>
-      </WGS84>
-      <Precision>
-        <Horizontal>0.0300</Horizontal>
-        <Vertical>0.0278</Vertical>
-      </Precision>
+      <QualityControl1>
+        <NumberOfSatellites>19</NumberOfSatellites>
+        <PDOP>1.64</PDOP>
+        <SolutionType>RTK Fixed</SolutionType>
+      </QualityControl1>
       <AntennaID>0000000A</AntennaID>
       <Features>
         <Feature Name="TREE">
-          <Attribute><Name>Species</Name><Type>Text</Type><Value>Oregon white oak</Value></Attribute>
-          <Attribute><Name>DBH (in)</Name><Type>Numeric</Type><Value>29</Value></Attribute>
+          <Attribute><Name>Species</Name><Type>Text</Type><Value>Redwood</Value></Attribute>
+          <Attribute><Name>DBH (in)</Name><Type>Numeric</Type><Value>20</Value></Attribute>
           <Attribute><Name>Condition</Name><Type>Text</Type><Value>Poor</Value></Attribute>
         </Feature>
       </Features>
+    </PointRecord>
+    <StationRecord ID="00000020" TimeStamp="2026-10-21T10:00:00">
+      <StationName>CP1</StationName>
+      <TheodoliteHeight>1.552</TheodoliteHeight>
+      <StationType>StandardStation</StationType>
+      <ScaleFactor>1</ScaleFactor>
+    </StationRecord>
+    <TargetRecord ID="00000021" TimeStamp="2026-10-21T10:00:00">
+      <PrismConstant>-0.0300</PrismConstant>
+      <TargetHeight>1.8</TargetHeight>
+    </TargetRecord>
+    <BackBearingRecord ID="00000022" TimeStamp="2026-10-21T10:01:00">
+      <Station>CP1</Station>
+      <BackSight>CP2</BackSight>
+      <Face1HorizontalCircle>0.00000000</Face1HorizontalCircle>
+      <OrientationCorrection>29.53576814</OrientationCorrection>
+      <StationRecordID>00000020</StationRecordID>
+    </BackBearingRecord>
+    <PointRecord ID="0000001E" TimeStamp="2026-10-21T10:07:49">
+      <Name>200</Name>
+      <Code>BLDG</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000020</StationID>
+      <BackBearingID>00000022</BackBearingID>
+      <TargetID>00000021</TargetID>
+      <Circle>
+        <HorizontalCircle>284.80258182</HorizontalCircle>
+        <VerticalCircle>88.12076163</VerticalCircle>
+        <EDMDistance>81.9220</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="0000001F" TimeStamp="2026-10-21T10:09:03">
+      <Name>201</Name>
+      <Code>BLDG</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000020</StationID>
+      <BackBearingID>00000022</BackBearingID>
+      <TargetID>00000021</TargetID>
+      <Circle>
+        <HorizontalCircle>282.47374362</HorizontalCircle>
+        <VerticalCircle>85.27438393</VerticalCircle>
+        <EDMDistance>34.8726</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="00000020" TimeStamp="2026-10-21T10:11:17">
+      <Name>202</Name>
+      <Code>CURB</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000020</StationID>
+      <BackBearingID>00000022</BackBearingID>
+      <TargetID>00000021</TargetID>
+      <Circle>
+        <HorizontalCircle>242.75184588</HorizontalCircle>
+        <VerticalCircle>90.14790289</VerticalCircle>
+        <EDMDistance>42.9586</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="00000021" TimeStamp="2026-10-21T10:13:31">
+      <Name>203</Name>
+      <Code>BLDG</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000020</StationID>
+      <BackBearingID>00000022</BackBearingID>
+      <TargetID>00000021</TargetID>
+      <Circle>
+        <HorizontalCircle>222.05817618</HorizontalCircle>
+        <VerticalCircle>84.21726882</VerticalCircle>
+        <EDMDistance>20.6011</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="00000022" TimeStamp="2026-10-21T10:15:45">
+      <Name>204</Name>
+      <Code>WALL</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000020</StationID>
+      <BackBearingID>00000022</BackBearingID>
+      <TargetID>00000021</TargetID>
+      <Circle>
+        <HorizontalCircle>248.99815664</HorizontalCircle>
+        <VerticalCircle>90.74144169</VerticalCircle>
+        <EDMDistance>67.3153</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="00000023" TimeStamp="2026-10-21T10:17:59">
+      <Name>205</Name>
+      <Code>BLDG</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000020</StationID>
+      <BackBearingID>00000022</BackBearingID>
+      <TargetID>00000021</TargetID>
+      <Circle>
+        <HorizontalCircle>285.88956279</HorizontalCircle>
+        <VerticalCircle>86.51538739</VerticalCircle>
+        <EDMDistance>28.7830</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="00000024" TimeStamp="2026-10-21T10:19:13">
+      <Name>206</Name>
+      <Code>LP</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000020</StationID>
+      <BackBearingID>00000022</BackBearingID>
+      <TargetID>00000021</TargetID>
+      <Circle>
+        <HorizontalCircle>127.13520017</HorizontalCircle>
+        <VerticalCircle>88.70066509</VerticalCircle>
+        <EDMDistance>107.7570</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+      <Features>
+        <Feature Name="LP">
+          <Attribute><Name>Pole type</Name><Type>Text</Type><Value>Concrete</Value></Attribute>
+          <Attribute><Name>Height (ft)</Name><Type>Numeric</Type><Value>29</Value></Attribute>
+        </Feature>
+      </Features>
+    </PointRecord>
+    <PointRecord ID="00000025" TimeStamp="2026-10-21T10:21:27">
+      <Name>207</Name>
+      <Code>LP</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000020</StationID>
+      <BackBearingID>00000022</BackBearingID>
+      <TargetID>00000021</TargetID>
+      <Circle>
+        <HorizontalCircle>258.14350409</HorizontalCircle>
+        <VerticalCircle>90.00887229</VerticalCircle>
+        <EDMDistance>59.0582</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+      <Features>
+        <Feature Name="LP">
+          <Attribute><Name>Pole type</Name><Type>Text</Type><Value>Concrete</Value></Attribute>
+          <Attribute><Name>Height (ft)</Name><Type>Numeric</Type><Value>26</Value></Attribute>
+        </Feature>
+      </Features>
+    </PointRecord>
+    <PointRecord ID="00000026" TimeStamp="2026-10-21T10:23:41">
+      <Name>208</Name>
+      <Code>LP</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000020</StationID>
+      <BackBearingID>00000022</BackBearingID>
+      <TargetID>00000021</TargetID>
+      <Circle>
+        <HorizontalCircle>192.15830306</HorizontalCircle>
+        <VerticalCircle>89.10767473</VerticalCircle>
+        <EDMDistance>39.6533</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+      <Features>
+        <Feature Name="LP">
+          <Attribute><Name>Pole type</Name><Type>Text</Type><Value>Concrete</Value></Attribute>
+          <Attribute><Name>Height (ft)</Name><Type>Numeric</Type><Value>28</Value></Attribute>
+        </Feature>
+      </Features>
+    </PointRecord>
+    <PointRecord ID="00000027" TimeStamp="2026-10-21T10:25:55">
+      <Name>209</Name>
+      <Code>CURB</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>true</Deleted>
+      <StationID>00000020</StationID>
+      <BackBearingID>00000022</BackBearingID>
+      <TargetID>00000021</TargetID>
+      <Circle>
+        <HorizontalCircle>183.72310447</HorizontalCircle>
+        <VerticalCircle>88.61705900</VerticalCircle>
+        <EDMDistance>80.2820</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="00000028" TimeStamp="2026-10-21T10:27:09">
+      <Name>210</Name>
+      <Code>CURB</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000020</StationID>
+      <BackBearingID>00000022</BackBearingID>
+      <TargetID>00000021</TargetID>
+      <Circle>
+        <HorizontalCircle>251.00008570</HorizontalCircle>
+        <VerticalCircle>90.20018077</VerticalCircle>
+        <EDMDistance>59.3894</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="00000029" TimeStamp="2026-10-21T10:29:23">
+      <Name>211</Name>
+      <Code>BLDG</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000020</StationID>
+      <BackBearingID>00000022</BackBearingID>
+      <TargetID>00000021</TargetID>
+      <Circle>
+        <HorizontalCircle>297.85097230</HorizontalCircle>
+        <VerticalCircle>89.26689593</VerticalCircle>
+        <EDMDistance>119.3952</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="0000002A" TimeStamp="2026-10-21T10:31:37">
+      <Name>212</Name>
+      <Code>LP</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000020</StationID>
+      <BackBearingID>00000022</BackBearingID>
+      <TargetID>00000021</TargetID>
+      <Circle>
+        <HorizontalCircle>285.76178151</HorizontalCircle>
+        <VerticalCircle>87.48539320</VerticalCircle>
+        <EDMDistance>35.9862</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+      <Features>
+        <Feature Name="LP">
+          <Attribute><Name>Pole type</Name><Type>Text</Type><Value>Concrete</Value></Attribute>
+          <Attribute><Name>Height (ft)</Name><Type>Numeric</Type><Value>19</Value></Attribute>
+        </Feature>
+      </Features>
+    </PointRecord>
+    <PointRecord ID="0000002B" TimeStamp="2026-10-21T10:33:51">
+      <Name>213</Name>
+      <Code>CURB</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000020</StationID>
+      <BackBearingID>00000022</BackBearingID>
+      <TargetID>00000021</TargetID>
+      <Circle>
+        <HorizontalCircle>220.79140817</HorizontalCircle>
+        <VerticalCircle>88.34059076</VerticalCircle>
+        <EDMDistance>96.0374</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="0000002C" TimeStamp="2026-10-21T10:35:05">
+      <Name>214</Name>
+      <Code>CURB</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000020</StationID>
+      <BackBearingID>00000022</BackBearingID>
+      <TargetID>00000021</TargetID>
+      <Circle>
+        <HorizontalCircle>154.15140985</HorizontalCircle>
+        <VerticalCircle>90.31248005</VerticalCircle>
+        <EDMDistance>61.9012</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="0000002D" TimeStamp="2026-10-21T10:37:19">
+      <Name>215</Name>
+      <Code>CURB</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000020</StationID>
+      <BackBearingID>00000022</BackBearingID>
+      <TargetID>00000021</TargetID>
+      <Circle>
+        <HorizontalCircle>214.37397626</HorizontalCircle>
+        <VerticalCircle>89.20603108</VerticalCircle>
+        <EDMDistance>73.9670</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
     </PointRecord>
   </FieldBook>
   <Reductions>
     <Point>
-      <ID>00000001</ID>
-      <Name>1</Name>
-      <Code>CP</Code>
-      <SurveyMethod>Fixed</SurveyMethod>
-      <Classification>Control</Classification>
-      <Grid>
-        <North>204929.5996</North>
-        <East>2329900.9502</East>
-        <Elevation>8.2842</Elevation>
-      </Grid>
-      <WGS84>
-        <Latitude>45.5224665154</Latitude>
-        <Longitude>-122.6777698687</Longitude>
-        <Height>29.5842</Height>
-      </WGS84>
-    </Point>
-    <Point>
-      <ID>00000002</ID>
-      <Name>2</Name>
-      <Code>CP</Code>
-      <SurveyMethod>Fixed</SurveyMethod>
-      <Classification>Control</Classification>
-      <Grid>
-        <North>204973.7527</North>
-        <East>2330104.3216</East>
-        <Elevation>9.9018</Elevation>
-      </Grid>
-      <WGS84>
-        <Latitude>45.5228638184</Latitude>
-        <Longitude>-122.6751625439</Longitude>
-        <Height>31.2018</Height>
-      </WGS84>
-    </Point>
-    <Point>
-      <ID>00000003</ID>
-      <Name>3</Name>
-      <Code>TREE</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
-      <Grid>
-        <North>205009.7832</North>
-        <East>2329944.2600</East>
-        <Elevation>7.3907</Elevation>
-      </Grid>
-      <WGS84>
-        <Latitude>45.5231880320</Latitude>
-        <Longitude>-122.6772146155</Longitude>
-        <Height>28.6907</Height>
-      </WGS84>
-    </Point>
-    <Point>
-      <ID>00000004</ID>
-      <Name>4</Name>
-      <Code>EP</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
-      <Grid>
-        <North>205037.5240</North>
-        <East>2329940.1594</East>
-        <Elevation>7.7870</Elevation>
-      </Grid>
-      <WGS84>
-        <Latitude>45.5234376527</Latitude>
-        <Longitude>-122.6772671867</Longitude>
-        <Height>29.0870</Height>
-      </WGS84>
-    </Point>
-    <Point>
-      <ID>00000005</ID>
-      <Name>5</Name>
-      <Code>EP</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
-      <Grid>
-        <North>205097.9709</North>
-        <East>2330115.0464</East>
-        <Elevation>10.0941</Elevation>
-      </Grid>
-      <WGS84>
-        <Latitude>45.5239815720</Latitude>
-        <Longitude>-122.6750250465</Longitude>
-        <Height>31.3941</Height>
-      </WGS84>
-    </Point>
-    <Point>
-      <ID>00000006</ID>
-      <Name>6</Name>
-      <Code>EP</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
-      <Grid>
-        <North>204956.6325</North>
-        <East>2329972.0278</East>
-        <Elevation>7.6955</Elevation>
-      </Grid>
-      <WGS84>
-        <Latitude>45.5227097659</Latitude>
-        <Longitude>-122.6768586181</Longitude>
-        <Height>28.9955</Height>
-      </WGS84>
-    </Point>
-    <Point>
-      <ID>00000007</ID>
-      <Name>7</Name>
-      <Code>EP</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
-      <Grid>
-        <North>205118.5764</North>
-        <East>2330079.3436</East>
-        <Elevation>10.4688</Elevation>
-      </Grid>
-      <WGS84>
-        <Latitude>45.5241669867</Latitude>
-        <Longitude>-122.6754827748</Longitude>
-        <Height>31.7688</Height>
-      </WGS84>
-    </Point>
-    <Point>
-      <ID>00000008</ID>
-      <Name>8</Name>
-      <Code>MH</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
-      <Grid>
-        <North>204944.5073</North>
-        <East>2330051.1448</East>
-        <Elevation>7.9470</Elevation>
-      </Grid>
-      <WGS84>
-        <Latitude>45.5226006600</Latitude>
-        <Longitude>-122.6758442978</Longitude>
-        <Height>29.2470</Height>
-      </WGS84>
-    </Point>
-    <Point>
-      <ID>00000009</ID>
-      <Name>9</Name>
-      <Code>FH</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
-      <Grid>
-        <North>204943.5103</North>
-        <East>2329987.8625</East>
-        <Elevation>7.6329</Elevation>
-      </Grid>
-      <WGS84>
-        <Latitude>45.5225916886</Latitude>
-        <Longitude>-122.6766556083</Longitude>
-        <Height>28.9329</Height>
-      </WGS84>
-    </Point>
-    <Point>
-      <ID>0000000A</ID>
-      <Name>10</Name>
-      <Code>LP</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
-      <Grid>
-        <North>204888.2658</North>
-        <East>2329990.6824</East>
-        <Elevation>10.6899</Elevation>
-      </Grid>
-      <WGS84>
-        <Latitude>45.5220945811</Latitude>
-        <Longitude>-122.6766194568</Longitude>
-        <Height>31.9899</Height>
-      </WGS84>
-    </Point>
-    <Point>
-      <ID>0000000B</ID>
-      <Name>11</Name>
-      <Code>BLDG</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
-      <Grid>
-        <North>205053.5777</North>
-        <East>2329911.4077</East>
-        <Elevation>9.3951</Elevation>
-      </Grid>
-      <WGS84>
-        <Latitude>45.5235821089</Latitude>
-        <Longitude>-122.6776357992</Longitude>
-        <Height>30.6951</Height>
-      </WGS84>
-    </Point>
-    <Point>
-      <ID>0000000C</ID>
-      <Name>12</Name>
-      <Code>BLDG</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
-      <Grid>
-        <North>205036.0119</North>
-        <East>2329985.3115</East>
-        <Elevation>7.4348</Elevation>
-      </Grid>
-      <WGS84>
-        <Latitude>45.5234240459</Latitude>
-        <Longitude>-122.6766883137</Longitude>
-        <Height>28.7348</Height>
-      </WGS84>
-    </Point>
-    <Point>
-      <ID>0000000D</ID>
-      <Name>13</Name>
-      <Code>CP</Code>
-      <SurveyMethod>Fixed</SurveyMethod>
-      <Classification>Control</Classification>
-      <Grid>
-        <North>205035.8553</North>
-        <East>2329924.7986</East>
-        <Elevation>7.9941</Elevation>
-      </Grid>
-      <WGS84>
-        <Latitude>45.5234226372</Latitude>
-        <Longitude>-122.6774641210</Longitude>
-        <Height>29.2941</Height>
-      </WGS84>
-    </Point>
-    <Point>
-      <ID>0000000E</ID>
-      <Name>14</Name>
-      <Code>TREE</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
-      <Grid>
-        <North>204940.6499</North>
-        <East>2330020.5172</East>
-        <Elevation>10.1484</Elevation>
-      </Grid>
-      <WGS84>
-        <Latitude>45.5225659491</Latitude>
-        <Longitude>-122.6762369585</Longitude>
-        <Height>31.4484</Height>
-      </WGS84>
-    </Point>
-    <Point>
-      <ID>0000000F</ID>
-      <Name>15</Name>
-      <Code>TREE</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
-      <Grid>
-        <North>204961.8819</North>
-        <East>2329895.8195</East>
-        <Elevation>10.5579</Elevation>
-      </Grid>
-      <WGS84>
-        <Latitude>45.5227570017</Latitude>
-        <Longitude>-122.6778356469</Longitude>
-        <Height>31.8579</Height>
-      </WGS84>
-    </Point>
-    <Point>
       <ID>00000010</ID>
-      <Name>16</Name>
-      <Code>TREE</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
+      <Name>CP1</Name>
+      <Code>CP</Code>
       <Grid>
-        <North>204907.4252</North>
-        <East>2330037.9199</East>
-        <Elevation>10.1455</Elevation>
+        <North>657223.8407</North>
+        <East>1862383.1442</East>
+        <Elevation>41.2500</Elevation>
       </Grid>
       <WGS84>
-        <Latitude>45.5222669831</Latitude>
-        <Longitude>-122.6760138477</Longitude>
-        <Height>31.4455</Height>
+        <Latitude>37.9063000000</Latitude>
+        <Longitude>-122.0650000000</Longitude>
+        <Height>8.8500</Height>
+      </WGS84>
+    </Point>
+    <Point>
+      <ID>00000011</ID>
+      <Name>CP2</Name>
+      <Code>CP</Code>
+      <Grid>
+        <North>657399.7785</North>
+        <East>1862482.8301</East>
+        <Elevation>43.9100</Elevation>
+      </Grid>
+      <WGS84>
+        <Latitude>37.9079000000</Latitude>
+        <Longitude>-122.0639000000</Longitude>
+        <Height>11.5100</Height>
       </WGS84>
     </Point>
     <Point>
       <ID>00000012</ID>
-      <Name>18</Name>
-      <Code>EP</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
+      <Name>100</Name>
+      <Code>FH</Code>
       <Grid>
-        <North>204963.5464</North>
-        <East>2329988.7144</East>
-        <Elevation>8.1608</Elevation>
+        <North>657270.6224</North>
+        <East>1862430.3070</East>
+        <Elevation>43.4514</Elevation>
       </Grid>
       <WGS84>
-        <Latitude>45.5227719796</Latitude>
-        <Longitude>-122.6766446869</Longitude>
-        <Height>29.4608</Height>
+        <Latitude>37.9067285508</Latitude>
+        <Longitude>-122.0644726506</Longitude>
+        <Height>11.0514</Height>
       </WGS84>
     </Point>
     <Point>
       <ID>00000013</ID>
-      <Name>19</Name>
-      <Code>EP</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
+      <Name>101</Name>
+      <Code>FH</Code>
       <Grid>
-        <North>205019.0585</North>
-        <East>2329984.8560</East>
-        <Elevation>7.5289</Elevation>
+        <North>657107.8422</North>
+        <East>1862427.4046</East>
+        <Elevation>42.2753</Elevation>
       </Grid>
       <WGS84>
-        <Latitude>45.5232714938</Latitude>
-        <Longitude>-122.6766941543</Longitude>
-        <Height>28.8289</Height>
+        <Latitude>37.9052616619</Latitude>
+        <Longitude>-122.0644747075</Longitude>
+        <Height>9.8753</Height>
       </WGS84>
     </Point>
     <Point>
       <ID>00000014</ID>
-      <Name>20</Name>
-      <Code>EP</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
+      <Name>102</Name>
+      <Code>MH</Code>
       <Grid>
-        <North>204883.2338</North>
-        <East>2330059.1855</East>
-        <Elevation>9.0821</Elevation>
+        <North>657304.7501</North>
+        <East>1862398.8570</East>
+        <Elevation>45.3840</Elevation>
       </Grid>
       <WGS84>
-        <Latitude>45.5220493021</Latitude>
-        <Longitude>-122.6757412115</Longitude>
-        <Height>30.3821</Height>
+        <Latitude>37.9070312627</Latitude>
+        <Longitude>-122.0648367287</Longitude>
+        <Height>12.9840</Height>
       </WGS84>
     </Point>
     <Point>
       <ID>00000015</ID>
-      <Name>21</Name>
-      <Code>MH</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
+      <Name>103</Name>
+      <Code>TREE</Code>
       <Grid>
-        <North>205012.3303</North>
-        <East>2330020.6332</East>
-        <Elevation>7.9857</Elevation>
+        <North>657186.8042</North>
+        <East>1862504.4854</East>
+        <Elevation>42.9016</Elevation>
       </Grid>
       <WGS84>
-        <Latitude>45.5232109521</Latitude>
-        <Longitude>-122.6762354718</Longitude>
-        <Height>29.2857</Height>
+        <Latitude>37.9059846202</Latitude>
+        <Longitude>-122.0636133102</Longitude>
+        <Height>10.5016</Height>
       </WGS84>
     </Point>
     <Point>
       <ID>00000016</ID>
-      <Name>22</Name>
-      <Code>FH</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
+      <Name>104</Name>
+      <Code>EP</Code>
       <Grid>
-        <North>205132.5331</North>
-        <East>2330037.8424</East>
-        <Elevation>7.5010</Elevation>
+        <North>657260.6021</North>
+        <East>1862351.4731</East>
+        <Elevation>40.3506</Elevation>
       </Grid>
       <WGS84>
-        <Latitude>45.5242925738</Latitude>
-        <Longitude>-122.6760148410</Longitude>
-        <Height>28.8010</Height>
+        <Latitude>37.9066264035</Latitude>
+        <Longitude>-122.0653670937</Longitude>
+        <Height>7.9506</Height>
       </WGS84>
     </Point>
     <Point>
       <ID>00000017</ID>
-      <Name>23</Name>
-      <Code>LP</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
+      <Name>105</Name>
+      <Code>EP</Code>
       <Grid>
-        <North>204997.8499</North>
-        <East>2329929.8778</East>
-        <Elevation>8.4740</Elevation>
+        <North>657398.4769</North>
+        <East>1862381.7120</East>
+        <Elevation>40.1589</Elevation>
       </Grid>
       <WGS84>
-        <Latitude>45.5230806528</Latitude>
-        <Longitude>-122.6773990032</Longitude>
-        <Height>29.7740</Height>
+        <Latitude>37.9078730436</Latitude>
+        <Longitude>-122.0650494935</Longitude>
+        <Height>7.7589</Height>
       </WGS84>
     </Point>
     <Point>
       <ID>00000018</ID>
-      <Name>24</Name>
-      <Code>BLDG</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
+      <Name>106</Name>
+      <Code>TREE</Code>
       <Grid>
-        <North>204924.1777</North>
-        <East>2329922.0524</East>
-        <Elevation>6.8472</Elevation>
+        <North>657392.8184</North>
+        <East>1862364.5675</East>
+        <Elevation>45.0411</Elevation>
       </Grid>
       <WGS84>
-        <Latitude>45.5224177275</Latitude>
-        <Longitude>-122.6774993277</Longitude>
-        <Height>28.1472</Height>
+        <Latitude>37.9078194844</Latitude>
+        <Longitude>-122.0652433549</Longitude>
+        <Height>12.6411</Height>
       </WGS84>
     </Point>
     <Point>
       <ID>00000019</ID>
-      <Name>25</Name>
-      <Code>BLDG</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
+      <Name>107</Name>
+      <Code>FH</Code>
       <Grid>
-        <North>205072.6311</North>
-        <East>2329979.3168</East>
-        <Elevation>7.7467</Elevation>
+        <North>657404.1361</North>
+        <East>1862346.4820</East>
+        <Elevation>43.9576</Elevation>
       </Grid>
       <WGS84>
-        <Latitude>45.5237535574</Latitude>
-        <Longitude>-122.6767651689</Longitude>
-        <Height>29.0467</Height>
+        <Latitude>37.9079187178</Latitude>
+        <Longitude>-122.0654511449</Longitude>
+        <Height>11.5576</Height>
       </WGS84>
     </Point>
     <Point>
       <ID>0000001A</ID>
-      <Name>26</Name>
-      <Code>CP</Code>
-      <SurveyMethod>Fixed</SurveyMethod>
-      <Classification>Control</Classification>
+      <Name>108</Name>
+      <Code>EP</Code>
       <Grid>
-        <North>204950.5285</North>
-        <East>2329904.3673</East>
-        <Elevation>8.9788</Elevation>
+        <North>657353.5094</North>
+        <East>1862489.4178</East>
+        <Elevation>39.7775</Elevation>
       </Grid>
       <WGS84>
-        <Latitude>45.5226548401</Latitude>
-        <Longitude>-122.6777260608</Longitude>
-        <Height>30.2788</Height>
+        <Latitude>37.9074841633</Latitude>
+        <Longitude>-122.0638163041</Longitude>
+        <Height>7.3775</Height>
       </WGS84>
     </Point>
     <Point>
       <ID>0000001B</ID>
-      <Name>27</Name>
+      <Name>109</Name>
       <Code>TREE</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
       <Grid>
-        <North>205098.9248</North>
-        <East>2330054.2512</East>
-        <Elevation>6.8620</Elevation>
+        <North>657139.0601</North>
+        <East>1862360.1046</East>
+        <Elevation>43.1504</Elevation>
       </Grid>
       <WGS84>
-        <Latitude>45.5239901555</Latitude>
-        <Longitude>-122.6758044721</Longitude>
-        <Height>28.1620</Height>
+        <Latitude>37.9055327585</Latitude>
+        <Longitude>-122.0652458371</Longitude>
+        <Height>10.7504</Height>
       </WGS84>
     </Point>
     <Point>
       <ID>0000001C</ID>
-      <Name>28</Name>
-      <Code>TREE</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
+      <Name>110</Name>
+      <Code>MH</Code>
       <Grid>
-        <North>205106.6232</North>
-        <East>2330105.9745</East>
-        <Elevation>8.0464</Elevation>
+        <North>657345.3358</North>
+        <East>1862309.2262</East>
+        <Elevation>39.0734</Elevation>
       </Grid>
       <WGS84>
-        <Latitude>45.5240594285</Latitude>
-        <Longitude>-122.6751413524</Longitude>
-        <Height>29.3464</Height>
+        <Latitude>37.9073833835</Latitude>
+        <Longitude>-122.0658635666</Longitude>
+        <Height>6.6734</Height>
       </WGS84>
     </Point>
     <Point>
       <ID>0000001D</ID>
-      <Name>29</Name>
+      <Name>111</Name>
       <Code>TREE</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
       <Grid>
-        <North>204924.0492</North>
-        <East>2330075.2288</East>
-        <Elevation>9.9044</Elevation>
+        <North>657168.1620</North>
+        <East>1862487.6748</East>
+        <Elevation>40.6461</Elevation>
       </Grid>
       <WGS84>
-        <Latitude>45.5224165712</Latitude>
-        <Longitude>-122.6755355287</Longitude>
-        <Height>31.2044</Height>
+        <Latitude>37.9058141457</Latitude>
+        <Longitude>-122.0638009044</Longitude>
+        <Height>8.2461</Height>
       </WGS84>
     </Point>
     <Point>
       <ID>0000001E</ID>
-      <Name>30</Name>
-      <Code>EP</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
+      <Name>200</Name>
+      <Code>BLDG</Code>
       <Grid>
-        <North>205123.1628</North>
-        <East>2330042.0206</East>
-        <Elevation>6.8782</Elevation>
+        <North>657281.0647</North>
+        <East>1862324.5831</East>
+        <Elevation>43.6885</Elevation>
       </Grid>
-      <WGS84>
-        <Latitude>45.5242082572</Latitude>
-        <Longitude>-122.6759612740</Longitude>
-        <Height>28.1782</Height>
-      </WGS84>
     </Point>
     <Point>
       <ID>0000001F</ID>
-      <Name>31</Name>
-      <Code>EP</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
+      <Name>201</Name>
+      <Code>BLDG</Code>
       <Grid>
-        <North>205124.9661</North>
-        <East>2330041.7306</East>
-        <Elevation>6.9419</Elevation>
+        <North>657247.1000</North>
+        <East>1862357.3208</East>
+        <Elevation>43.8749</Elevation>
       </Grid>
-      <WGS84>
-        <Latitude>45.5242244839</Latitude>
-        <Longitude>-122.6759649923</Longitude>
-        <Height>28.2419</Height>
-      </WGS84>
     </Point>
     <Point>
       <ID>00000020</ID>
-      <Name>32</Name>
-      <Code>EP</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
+      <Name>202</Name>
+      <Code>CURB</Code>
       <Grid>
-        <North>205018.4584</North>
-        <East>2330061.5250</East>
-        <Elevation>10.4099</Elevation>
+        <North>657225.5554</North>
+        <East>1862340.2200</East>
+        <Elevation>40.8911</Elevation>
       </Grid>
-      <WGS84>
-        <Latitude>45.5232660942</Latitude>
-        <Longitude>-122.6757112174</Longitude>
-        <Height>31.7099</Height>
-      </WGS84>
     </Point>
     <Point>
       <ID>00000021</ID>
-      <Name>33</Name>
-      <Code>EP</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
+      <Name>203</Name>
+      <Code>BLDG</Code>
       <Grid>
-        <North>205112.6510</North>
-        <East>2329878.4723</East>
-        <Elevation>10.2057</Elevation>
+        <North>657217.3690</North>
+        <East>1862363.6965</East>
+        <Elevation>43.0777</Elevation>
       </Grid>
-      <WGS84>
-        <Latitude>45.5241136688</Latitude>
-        <Longitude>-122.6780580471</Longitude>
-        <Height>31.5057</Height>
-      </WGS84>
     </Point>
     <Point>
       <ID>00000022</ID>
-      <Name>34</Name>
-      <Code>MH</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
+      <Name>204</Name>
+      <Code>WALL</Code>
       <Grid>
-        <North>205075.4728</North>
-        <East>2330094.3183</East>
-        <Elevation>8.9024</Elevation>
+        <North>657233.8291</North>
+        <East>1862316.5798</East>
+        <Elevation>40.1309</Elevation>
       </Grid>
-      <WGS84>
-        <Latitude>45.5237791274</Latitude>
-        <Longitude>-122.6752907908</Longitude>
-        <Height>30.2024</Height>
-      </WGS84>
     </Point>
     <Point>
       <ID>00000023</ID>
-      <Name>35</Name>
-      <Code>FH</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
+      <Name>205</Name>
+      <Code>BLDG</Code>
       <Grid>
-        <North>204954.8297</North>
-        <East>2330097.7808</East>
-        <Elevation>9.7943</Elevation>
+        <North>657244.3060</North>
+        <East>1862362.9805</East>
+        <Elevation>42.7514</Elevation>
       </Grid>
-      <WGS84>
-        <Latitude>45.5226935435</Latitude>
-        <Longitude>-122.6752463999</Longitude>
-        <Height>31.0943</Height>
-      </WGS84>
     </Point>
     <Point>
       <ID>00000024</ID>
-      <Name>36</Name>
+      <Name>206</Name>
       <Code>LP</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
       <Grid>
-        <North>204873.6812</North>
-        <East>2329883.7321</East>
-        <Elevation>9.0779</Elevation>
+        <North>657124.9187</North>
+        <East>1862425.8062</East>
+        <Elevation>43.4455</Elevation>
       </Grid>
-      <WGS84>
-        <Latitude>45.5219633443</Latitude>
-        <Longitude>-122.6779906139</Longitude>
-        <Height>30.3779</Height>
-      </WGS84>
     </Point>
     <Point>
       <ID>00000025</ID>
-      <Name>37</Name>
-      <Code>BLDG</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
+      <Name>207</Name>
+      <Code>LP</Code>
       <Grid>
-        <North>205028.8388</North>
-        <East>2329909.8349</East>
-        <Elevation>8.1503</Elevation>
+        <North>657241.7760</North>
+        <East>1862326.8753</East>
+        <Elevation>40.9929</Elevation>
       </Grid>
-      <WGS84>
-        <Latitude>45.5233595004</Latitude>
-        <Longitude>-122.6776559625</Longitude>
-        <Height>29.4503</Height>
-      </WGS84>
     </Point>
     <Point>
       <ID>00000026</ID>
-      <Name>38</Name>
-      <Code>BLDG</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
+      <Name>208</Name>
+      <Code>LP</Code>
       <Grid>
-        <North>204869.4558</North>
-        <East>2330084.2872</East>
-        <Elevation>10.0102</Elevation>
+        <North>657194.2349</North>
+        <East>1862356.7719</East>
+        <Elevation>41.6195</Elevation>
       </Grid>
-      <WGS84>
-        <Latitude>45.5219253230</Latitude>
-        <Longitude>-122.6754193953</Longitude>
-        <Height>31.3102</Height>
-      </WGS84>
-    </Point>
-    <Point>
-      <ID>00000027</ID>
-      <Name>39</Name>
-      <Code>CP</Code>
-      <SurveyMethod>Fixed</SurveyMethod>
-      <Classification>Control</Classification>
-      <Grid>
-        <North>204968.3028</North>
-        <East>2330071.7319</East>
-        <Elevation>7.9447</Elevation>
-      </Grid>
-      <WGS84>
-        <Latitude>45.5228147793</Latitude>
-        <Longitude>-122.6755803601</Longitude>
-        <Height>29.2447</Height>
-      </WGS84>
     </Point>
     <Point>
       <ID>00000028</ID>
-      <Name>40</Name>
-      <Code>TREE</Code>
-      <SurveyMethod>GNSS</SurveyMethod>
-      <Classification>Normal</Classification>
+      <Name>210</Name>
+      <Code>CURB</Code>
       <Grid>
-        <North>205124.3643</North>
-        <East>2329898.9419</East>
-        <Elevation>7.1578</Elevation>
+        <North>657234.7000</North>
+        <East>1862324.7565</East>
+        <Elevation>40.7945</Elevation>
       </Grid>
-      <WGS84>
-        <Latitude>45.5242190687</Latitude>
-        <Longitude>-122.6777956171</Longitude>
-        <Height>28.4578</Height>
-      </WGS84>
+    </Point>
+    <Point>
+      <ID>00000029</ID>
+      <Name>211</Name>
+      <Code>BLDG</Code>
+      <Grid>
+        <North>657324.4024</North>
+        <East>1862318.7996</East>
+        <Elevation>42.5296</Elevation>
+      </Grid>
+    </Point>
+    <Point>
+      <ID>0000002A</ID>
+      <Name>212</Name>
+      <Code>LP</Code>
+      <Grid>
+        <North>657249.3939</North>
+        <East>1862357.8550</East>
+        <Elevation>42.5809</Elevation>
+      </Grid>
+    </Point>
+    <Point>
+      <ID>0000002B</ID>
+      <Name>213</Name>
+      <Code>CURB</Code>
+      <Grid>
+        <North>657191.5234</North>
+        <East>1862292.7504</East>
+        <Elevation>43.7831</Elevation>
+      </Grid>
+    </Point>
+    <Point>
+      <ID>0000002C</ID>
+      <Name>214</Name>
+      <Code>CURB</Code>
+      <Grid>
+        <North>657162.0686</North>
+        <East>1862379.1635</East>
+        <Elevation>40.6644</Elevation>
+      </Grid>
+    </Point>
+    <Point>
+      <ID>0000002D</ID>
+      <Name>215</Name>
+      <Code>CURB</Code>
+      <Grid>
+        <North>657191.3141</North>
+        <East>1862316.7207</East>
+        <Elevation>42.0270</Elevation>
+      </Grid>
     </Point>
   </Reductions>
 </JOBFile>

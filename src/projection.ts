@@ -1,11 +1,15 @@
 import proj4 from 'proj4';
+import { PRESETS } from './crs';
 import type { JxlPoint } from './jxl';
 
 /**
  * Turn user input into a proj4 definition. Accepts "EPSG:1234" (looked up on
- * epsg.io), a bare EPSG number, or a proj4 / WKT string.
+ * epsg.io unless it's a built-in preset), a bare EPSG number, or a proj4 / WKT
+ * string.
  */
 export async function resolveProjection(input: string): Promise<string> {
+  const preset = PRESETS.find((p) => p.id.toLowerCase() === input.toLowerCase() || p.label === input);
+  if (preset) return preset.proj4;
   const m = input.match(/^(?:epsg:)?\s*(\d{4,6})$/i);
   if (!m) return input;
   const res = await fetch(`https://epsg.io/${m[1]}.proj4`);

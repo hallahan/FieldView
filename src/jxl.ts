@@ -3,7 +3,12 @@
 // JobXML stores all distances in metres and all angles/geodetic coordinates in
 // decimal degrees, regardless of the units shown in the field software.
 
-export type Attrs = Record<string, string>;
+import proj4 from 'proj4';
+import { detectCrs, type CrsInfo } from './crs';
+import { attrEntries, child, children, flatten, num, text_, type Attrs } from './xml';
+import { reduceTotalStation, type TsContext } from './totalstation';
+
+export type { Attrs } from './xml';
 
 export interface Coordinates {
   lat?: number;
@@ -14,7 +19,11 @@ export interface Coordinates {
   elevation?: number;
   /** Where the lat/lon came from. */
   source?: 'WGS84' | 'ECEF' | 'Grid';
+  /** Grid position was computed here from a total station observation. */
+  reduced?: boolean;
 }
+
+export type ObservationType = 'GNSS' | 'Total station' | 'Keyed in' | 'Other';
 
 export interface JxlPoint {
   /** Stable index into JxlDocument.points. */
@@ -25,6 +34,8 @@ export interface JxlPoint {
   coords: Coordinates;
   /** Where the point came from in the file. */
   origin: 'Reductions' | 'FieldBook';
+  /** How the point was measured, from its FieldBook record. */
+  type: ObservationType;
   deleted: boolean;
   /** Flattened attributes of the point (and its matching FieldBook record). */
   attributes: Attrs;
@@ -42,11 +53,20 @@ export interface JxlDocument {
   metadata: MetadataSection[];
   /** Points that only have grid coordinates (need a projection to be mapped). */
   gridOnlyCount: number;
+  crs: CrsInfo;
 }
 
 export class JxlParseError extends Error {}
 
-export function parseJxl(text: string): JxlDocument {
+export interface ParseOptions {
+  /**
+   * proj4 definition (metres) of the job's grid. Used to put GNSS-measured
+   * total station setups on the grid. Defaults to the detected coordinate system.
+   */
+  proj4?: string;
+}
+
+export function parseJxl(text: string, options: ParseOptions = {}): JxlDocument {
   const xml = new DOMParser().parseFromString(text, 'application/xml');
   const err = xml.getElementsByTagName('parsererror')[0];
   if (err) throw new JxlParseError(`Not valid XML: ${err.textContent?.trim().split('\n')[0] ?? ''}`);
@@ -57,6 +77,9 @@ export function parseJxl(text: string): JxlDocument {
 
   const fieldBook = child(root, 'FieldBook');
   const reductions = child(root, 'Reductions');
+  const crs = detectCrs(root);
+  const gridDef = options.proj4 ?? crs.preset?.proj4;
+  const toGrid = gridDef ? proj4('EPSG:4326', gridDef) : undefined;
 
   const records = fieldBook ? children(fieldBook, 'PointRecord') : [];
   const recordsById = new Map<string, Element>();
@@ -66,6 +89,26 @@ export function parseJxl(text: string): JxlDocument {
     if (id) recordsById.set(id, r);
     // Later records with the same name supersede earlier ones.
     if (!isDeleted(r)) recordsByName.set(text_(r, 'Name'), r);
+  }
+
+  // Positions of every FieldBook record, reducing total station shots that
+  // don't carry their own coordinates. Records are processed in file order so
+  // a setup on a previously observed point can use that point's position.
+  const ts: TsContext = { fieldBook, gridByName: new Map() };
+  const recordCoords = new Map<Element, Coordinates>();
+  for (const r of records) {
+    let c = coordinates(r);
+    if (c.north === undefined && c.lat === undefined) c = { ...c, ...reduceTotalStation(r, ts) };
+    recordCoords.set(r, c);
+    if (isDeleted(r)) continue;
+    if (c.north !== undefined && c.east !== undefined) {
+      ts.gridByName.set(text_(r, 'Name'), { north: c.north, east: c.east, elevation: c.elevation });
+    } else if (toGrid && c.lat !== undefined && c.lon !== undefined) {
+      // A GNSS-measured setup or backsight. Its elevation needs a geoid model,
+      // so shots from it get plan positions only.
+      const [east, north] = toGrid.forward([c.lon, c.lat]);
+      ts.gridByName.set(text_(r, 'Name'), { north, east });
+    }
   }
 
   const points: JxlPoint[] = [];
@@ -89,8 +132,9 @@ export function parseJxl(text: string): JxlDocument {
         id,
         name,
         code: text_(p, 'Code') || (record ? text_(record, 'Code') : ''),
-        coords: withFallback(coordinates(p), record && coordinates(record)),
+        coords: withFallback(coordinates(p), record && recordCoords.get(record)),
         origin: 'Reductions',
+        type: record ? observationType(record) : 'Other',
         deleted: false,
         attributes,
         features,
@@ -103,8 +147,9 @@ export function parseJxl(text: string): JxlDocument {
         id: r.getAttribute('ID') ?? '',
         name: text_(r, 'Name'),
         code: text_(r, 'Code'),
-        coords: coordinates(r),
+        coords: recordCoords.get(r)!,
         origin: 'FieldBook',
+        type: observationType(r),
         deleted: isDeleted(r),
         attributes: flatten(r),
         features: parseFeatures(r),
@@ -114,12 +159,13 @@ export function parseJxl(text: string): JxlDocument {
 
   const gridOnlyCount = points.filter((p) => p.coords.lat === undefined && p.coords.north !== undefined).length;
 
-  return { points, metadata: metadata(root, points), gridOnlyCount };
+  return { points, metadata: metadata(root, points, crs), gridOnlyCount, crs };
 }
 
-function metadata(root: Element, points: JxlPoint[]): MetadataSection[] {
+function metadata(root: Element, points: JxlPoint[], crs: CrsInfo): MetadataSection[] {
   const sections: MetadataSection[] = [];
 
+  sections.push({ title: 'Datum and projection', entries: crs.entries });
   sections.push({ title: 'Job', entries: attrEntries(root) });
 
   const fieldBook = child(root, 'FieldBook');
@@ -152,6 +198,12 @@ function metadata(root: Element, points: JxlPoint[]): MetadataSection[] {
   summary.push(['Points with WGS84 position', String(points.filter((p) => p.coords.lat !== undefined).length)]);
   const codes = new Set(points.map((p) => p.code).filter(Boolean));
   summary.push(['Distinct codes', String(codes.size)]);
+  for (const type of ['GNSS', 'Total station', 'Keyed in', 'Other'] as ObservationType[]) {
+    const n = points.filter((p) => p.type === type).length;
+    if (n) summary.push([`${type} points`, String(n)]);
+  }
+  const reducedHere = points.filter((p) => p.coords.reduced).length;
+  if (reducedHere) summary.push(['Total station shots reduced by FieldView', String(reducedHere)]);
 
   const stamps = Array.from(root.querySelectorAll('[TimeStamp]'))
     .map((e) => e.getAttribute('TimeStamp')!)
@@ -214,8 +266,31 @@ function coordinates(el: Element): Coordinates {
 }
 
 function withFallback(c: Coordinates, fallback: Coordinates | undefined): Coordinates {
-  if (c.lat !== undefined || !fallback || fallback.lat === undefined) return c;
-  return { ...c, lat: fallback.lat, lon: fallback.lon, height: fallback.height, source: fallback.source };
+  if (!fallback) return c;
+  const out = { ...c };
+  if (out.north === undefined && fallback.north !== undefined) {
+    Object.assign(out, { north: fallback.north, east: fallback.east, elevation: fallback.elevation, reduced: fallback.reduced });
+  }
+  if (out.lat === undefined && fallback.lat !== undefined) {
+    Object.assign(out, { lat: fallback.lat, lon: fallback.lon, height: fallback.height, source: fallback.source });
+  }
+  return out;
+}
+
+/**
+ * Classify a FieldBook point record by how it was measured. Total station
+ * shots reference a station setup and carry circle readings; GNSS shots
+ * reference an antenna and carry ECEF or delta vectors.
+ */
+export function observationType(r: Element): ObservationType {
+  if (child(r, 'Circle') || child(r, 'StationID') || child(r, 'BackBearingID') || child(r, 'TargetID')) return 'Total station';
+  if (child(r, 'ECEFDeltas') || child(r, 'ECEF') || child(r, 'AntennaID') || child(r, 'RTK_Base') || child(r, 'QualityControl1')) {
+    return 'GNSS';
+  }
+  const method = text_(r, 'Method').toLowerCase();
+  if (method.includes('keyed')) return 'Keyed in';
+  if (method.includes('gnss') || method.includes('rtk') || method.includes('fastatic')) return 'GNSS';
+  return 'Other';
 }
 
 /** Convert WGS84 ECEF (metres) to geodetic lat/lon (degrees) and ellipsoidal height. */
@@ -247,59 +322,6 @@ function parseFeatures(record: Element): JxlPoint['features'] {
     out.push({ name: feature.getAttribute('Name') ?? text_(feature, 'Name'), attributes });
   }
   return out;
-}
-
-/**
- * Flatten an element's subtree into dotted keys. XML attributes become
- * `path@attr`, repeated siblings get a `[n]` suffix.
- */
-export function flatten(el: Element): Attrs {
-  const out: Attrs = {};
-  for (const [k, v] of attrEntries(el)) out[`@${k}`] = v;
-  walk(el, '', out);
-  return out;
-}
-
-function walk(el: Element, prefix: string, out: Attrs) {
-  const kids = Array.from(el.children);
-  const totals = new Map<string, number>();
-  for (const k of kids) totals.set(k.tagName, (totals.get(k.tagName) ?? 0) + 1);
-  const seen = new Map<string, number>();
-  for (const k of kids) {
-    const n = seen.get(k.tagName) ?? 0;
-    seen.set(k.tagName, n + 1);
-    const key = prefix + k.tagName + (totals.get(k.tagName)! > 1 ? `[${n + 1}]` : '');
-    for (const [a, v] of attrEntries(k)) out[`${key}@${a}`] = v;
-    if (k.children.length) walk(k, key + '.', out);
-    else {
-      const t = k.textContent?.trim() ?? '';
-      if (t || !k.attributes.length) out[key] = t;
-    }
-  }
-}
-
-function attrEntries(el: Element): [string, string][] {
-  return Array.from(el.attributes).map((a) => [a.name, a.value]);
-}
-
-function child(el: Element, tag: string): Element | undefined {
-  for (const c of Array.from(el.children)) if (c.tagName === tag) return c;
-  return undefined;
-}
-
-function children(el: Element, tag: string): Element[] {
-  return Array.from(el.children).filter((c) => c.tagName === tag);
-}
-
-function text_(el: Element, tag: string): string {
-  return child(el, tag)?.textContent?.trim() ?? '';
-}
-
-function num(el: Element, tag: string): number | undefined {
-  const t = text_(el, tag);
-  if (t === '') return undefined;
-  const n = Number(t);
-  return Number.isFinite(n) ? n : undefined;
 }
 
 function isDeleted(el: Element): boolean {
