@@ -1,5 +1,6 @@
 // Work out the job's datum, epoch and projection from the JobXML.
 
+import { helmertFromJob, ITRF2014_TO_NAD83_2011, planeAdjustmentFromJob, type Helmert, type PlaneAdjustment } from './datum';
 import { child, num, text_ } from './xml';
 
 export interface CrsPreset {
@@ -32,6 +33,12 @@ export interface CrsInfo {
   distanceUnits: string;
   /** Grid projection to use for grid-only points, in metres. */
   projection?: { label: string; proj4: string; id?: string };
+  /** Site calibration applied to the job's grid coordinates. */
+  adjustment?: PlaneAdjustment;
+  /** Lat/long are NAD83, so they need shifting to sit on WGS84 imagery. */
+  nad83: boolean;
+  /** ITRF2014 → NAD83(2011) transformation to use for that shift. */
+  helmert: Helmert;
   /** Rows for the metadata panel. */
   entries: [string, string][];
 }
@@ -70,6 +77,10 @@ export function detectCrs(root: Element): CrsInfo {
     ? { label: preset ? `${preset.label}, parameters from file` : `${text_(projection!, 'Type')}, parameters from file`, proj4: fromFile }
     : preset && { label: preset.label, proj4: preset.proj4, id: preset.id };
 
+  const adjustment = planeAdjustmentFromJob(root);
+  const nad83 = /nad\s*83|nad\s*1983|ca\s*srs/i.test(`${referenceFrame} ${datumName} ${systemName}`);
+  const helmert = helmertFromJob(root) ?? ITRF2014_TO_NAD83_2011;
+
   const entries: [string, string][] = [];
   if (systemName) entries.push(['System', systemName]);
   if (zoneName) entries.push(['Zone', zoneName]);
@@ -87,14 +98,30 @@ export function detectCrs(root: Element): CrsInfo {
   const horizontal = last(fieldBook, 'HorizontalAdjustmentRecord');
   const calibration = [horizontal && text_(horizontal, 'Type'), vertical && text_(vertical, 'Type')].filter(Boolean);
   if (calibration.length) entries.push(['Site calibration', calibration.join(', ')]);
+  if (adjustment) {
+    entries.push([
+      'Horizontal adjustment',
+      `shift N ${adjustment.translationNorth.toFixed(3)} m, E ${adjustment.translationEast.toFixed(3)} m, ` +
+        `rotation ${(adjustment.rotation * 3600).toFixed(2)}″, scale ${((adjustment.scale - 1) * 1e6).toFixed(2)} ppm`,
+    ]);
+  }
   if (distanceUnits) entries.push(['Distance units', distanceUnits]);
   entries.push(['Grid projection used', chosen ? chosen.label : 'Not recognised: enter one to place grid-only points']);
-  entries.push([
-    'Map display',
-    'Lat/long from the file are drawn on a Web Mercator basemap without datum or epoch shifts (about 1 to 2 m against WGS84 for NAD83(2011)). Grid-only points are placed with the projection above, without the site calibration, so expect differences of a few centimetres.',
-  ]);
+  if (nad83) entries.push(['NAD83 → WGS84 for the map', helmert.name]);
 
-  return { systemName, zoneName, datumName, referenceFrame, epochs: [...epochs].sort(), distanceUnits, projection: chosen, entries };
+  return {
+    systemName,
+    zoneName,
+    datumName,
+    referenceFrame,
+    epochs: [...epochs].sort(),
+    distanceUnits,
+    projection: chosen,
+    adjustment,
+    nad83,
+    helmert,
+    entries,
+  };
 }
 
 /** Build a proj4 definition from a JobXML <Projection>, or undefined for types we don't map. */

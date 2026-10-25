@@ -1,5 +1,6 @@
 import proj4 from 'proj4';
 import { PRESETS } from './crs';
+import { removePlaneAdjustment, type PlaneAdjustment } from './datum';
 import type { JxlPoint } from './jxl';
 
 /**
@@ -31,10 +32,12 @@ function toMeter(def: string): number {
 
 /**
  * Compute lat/lon for points that only have grid coordinates. JobXML grid
- * values are always metres, so convert to the projection's unit first.
+ * values are always metres, so convert to the projection's unit first. When
+ * the job has a site calibration, its grid is the calibrated one, so the
+ * calibration is removed before un-projecting.
  * Returns the number of points placed.
  */
-export function projectGrid(points: JxlPoint[], def: string): number {
+export function projectGrid(points: JxlPoint[], def: string, adjustment?: PlaneAdjustment): number {
   const transform = proj4(def, 'EPSG:4326');
   const scale = def.startsWith('+') ? toMeter(def) : 1;
   let n = 0;
@@ -42,7 +45,8 @@ export function projectGrid(points: JxlPoint[], def: string): number {
     const c = p.coords;
     if (c.north === undefined || c.east === undefined) continue;
     if (c.source && c.source !== 'Grid') continue;
-    const [lon, lat] = transform.forward([c.east / scale, c.north / scale]);
+    const [north, east] = adjustment ? removePlaneAdjustment(adjustment, c.north, c.east) : [c.north, c.east];
+    const [lon, lat] = transform.forward([east / scale, north / scale]);
     if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) continue;
     c.lat = lat;
     c.lon = lon;

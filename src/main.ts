@@ -3,6 +3,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 import type { FeatureCollection, Point } from 'geojson';
 import { PRESETS } from './crs';
+import { currentEpoch, nad83ToWgs84 } from './datum';
 import { parseJxl, type JxlDocument, type JxlPoint, type ObservationType } from './jxl';
 import { projectGrid, resolveProjection } from './projection';
 
@@ -47,6 +48,8 @@ const TYPE_SHORT: Record<ObservationType, string> = {
 let doc: JxlDocument | undefined;
 let selected: number | undefined;
 let colorBy: 'code' | 'type' = 'code';
+let alignToImagery = readPref('alignToImagery') !== 'false';
+const mapEpoch = currentEpoch();
 
 let map: maplibregl.Map;
 try {
@@ -156,10 +159,10 @@ function toGeoJSON(): FeatureCollection {
   return {
     type: 'FeatureCollection',
     features: (doc?.points ?? [])
-      .filter((p) => p.coords.lat !== undefined)
+      .filter((p) => p.coords.mapLat !== undefined)
       .map((p) => ({
         type: 'Feature',
-        geometry: { type: 'Point', coordinates: [p.coords.lon!, p.coords.lat!] },
+        geometry: { type: 'Point', coordinates: [p.coords.mapLon!, p.coords.mapLat!] },
         properties: { index: p.index, name: p.name, code: p.code, deleted: p.deleted, color: color(p) },
       })),
   };
@@ -189,13 +192,13 @@ document.querySelectorAll<HTMLButtonElement>('#color-by button').forEach((b) =>
 function refreshMap(fit: boolean) {
   (map.getSource('points') as GeoJSONSource | undefined)?.setData(toGeoJSON());
   if (!fit || !doc) return;
-  const located = doc.points.filter((p) => p.coords.lat !== undefined);
+  const located = doc.points.filter((p) => p.coords.mapLat !== undefined);
   // Frame what was measured on this job: keyed-in control can be kilometres away.
   const measured = located.filter((p) => p.type !== 'Keyed in' && !p.deleted);
   const framed = measured.length ? measured : located;
   if (!framed.length) return;
   const bounds = new maplibregl.LngLatBounds();
-  for (const p of framed) bounds.extend([p.coords.lon!, p.coords.lat!]);
+  for (const p of framed) bounds.extend([p.coords.mapLon!, p.coords.mapLat!]);
   map.fitBounds(bounds, { padding: isSheet() ? 30 : 60, maxZoom: 18, duration: 600 });
 }
 
@@ -234,7 +237,7 @@ function load(text: string, name: string, size: number, gridDef?: { input: strin
   const projectionLabel = gridDef ? gridDef.input : detected?.label;
   if (doc.gridOnlyCount && projection) {
     try {
-      projected = projectGrid(doc.points, projection.proj4);
+      projected = projectGrid(doc.points, projection.proj4, doc.crs.adjustment);
       $<HTMLInputElement>('#proj-input').value = projection.input;
     } catch (err) {
       // For a detected projection, quietly leave it to the user to pick one.
@@ -250,6 +253,8 @@ function load(text: string, name: string, size: number, gridDef?: { input: strin
     `<strong>${esc(name)}</strong>: ${doc.points.length} points${types.length ? ` (${types.join(', ')})` : ''}, ${mapped} on the map.` +
       (projected ? `<br><span class="muted">${projected} grid points placed using ${esc(projectionLabel!)}.</span>` : ''),
   );
+  $('#align-row').hidden = !doc.crs.nad83;
+  alignPoints();
   const remaining = doc.points.filter((p) => p.coords.lat === undefined && p.coords.north !== undefined).length;
   $('#projection').hidden = remaining === 0;
   $('#grid-count').textContent = String(doc.gridOnlyCount);
@@ -319,6 +324,63 @@ $('#proj-form').addEventListener('submit', async (e) => {
   }
 });
 
+/**
+ * Work out where each point is drawn. Lat/long in a NAD83 job are shifted to
+ * WGS84 at today's epoch so they sit on the imagery; the file's values are
+ * left untouched for display.
+ */
+function alignPoints() {
+  if (!doc) return;
+  const shift = alignToImagery && doc.crs.nad83;
+  let moved = 0;
+  for (const p of doc.points) {
+    const c = p.coords;
+    if (c.lat === undefined || c.lon === undefined) continue;
+    if (shift) {
+      const w = nad83ToWgs84(c.lat, c.lon, c.height ?? 0, mapEpoch, doc.crs.helmert);
+      c.mapLat = w.lat;
+      c.mapLon = w.lon;
+      if (!moved) moved = groundDistance(c.lat, c.lon, w.lat, w.lon);
+    } else {
+      c.mapLat = c.lat;
+      c.mapLon = c.lon;
+    }
+  }
+  $('#align-shift').textContent = shift && moved ? `(moves points ${moved.toFixed(2)} m)` : '';
+}
+
+function groundDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const r = Math.PI / 180;
+  const dn = (lat2 - lat1) * r * 6371000;
+  const de = (lon2 - lon1) * r * 6371000 * Math.cos(lat1 * r);
+  return Math.hypot(dn, de);
+}
+
+$<HTMLInputElement>('#align-toggle').checked = alignToImagery;
+$<HTMLInputElement>('#align-toggle').addEventListener('change', (e) => {
+  alignToImagery = (e.target as HTMLInputElement).checked;
+  writePref('alignToImagery', String(alignToImagery));
+  alignPoints();
+  refreshMap(false);
+  renderDetail();
+});
+
+function readPref(key: string): string | null {
+  try {
+    return localStorage.getItem(`fieldview.${key}`);
+  } catch {
+    return null;
+  }
+}
+
+function writePref(key: string, value: string) {
+  try {
+    localStorage.setItem(`fieldview.${key}`, value);
+  } catch {
+    // Private mode etc.; the setting just won't stick.
+  }
+}
+
 // ---------------------------------------------------------------- sidebar
 
 // On narrow screens the sidebar is a panel under the map that can be expanded.
@@ -373,7 +435,7 @@ function select(index: number, fly: boolean) {
     setSheet(false);
     requestAnimationFrame(() => $('#point-detail').scrollIntoView({ block: 'start' }));
   }
-  if (fly && p.coords.lat !== undefined) map.flyTo({ center: [p.coords.lon!, p.coords.lat!], zoom: Math.max(map.getZoom(), 17) });
+  if (fly && p.coords.mapLat !== undefined) map.flyTo({ center: [p.coords.mapLon!, p.coords.mapLat!], zoom: Math.max(map.getZoom(), 17) });
   renderTable();
   renderDetail();
   if (!isSheet()) document.querySelector(`#points-table tr[data-index="${index}"]`)?.scrollIntoView({ block: 'nearest' });
@@ -420,6 +482,9 @@ function positionEntries(p: JxlPoint): [string, string][] {
     out.push(['Latitude', c.lat.toFixed(9)], ['Longitude', c.lon!.toFixed(9)]);
     if (c.height !== undefined) out.push(['Ellipsoid height (m)', c.height.toFixed(3)]);
     out.push(['Lat/long from', c.source === 'Grid' ? 'Grid coordinates' : c.source!]);
+    if (c.mapLat !== undefined && (c.mapLat !== c.lat || c.mapLon !== c.lon)) {
+      out.push([`Map position (WGS84, ${mapEpoch.toFixed(2)})`, `${c.mapLat.toFixed(9)}, ${c.mapLon!.toFixed(9)}`]);
+    }
   }
   out.push(['Record ID', p.id], ['From', p.origin]);
   return out;

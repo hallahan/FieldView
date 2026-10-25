@@ -5,6 +5,7 @@
 
 import proj4 from 'proj4';
 import { detectCrs, type CrsInfo } from './crs';
+import { applyPlaneAdjustment } from './datum';
 import { attrEntries, child, children, flatten, num, text_, type Attrs } from './xml';
 import { reduceTotalStation, type TsContext } from './totalstation';
 
@@ -21,6 +22,9 @@ export interface Coordinates {
   source?: 'WGS84' | 'ECEF' | 'Grid';
   /** Grid position was computed here from a total station observation. */
   reduced?: boolean;
+  /** Where to draw the point on the basemap, after any datum shift. */
+  mapLat?: number;
+  mapLon?: number;
 }
 
 export type ObservationType = 'GNSS' | 'Total station' | 'Computed' | 'Keyed in' | 'Other';
@@ -106,7 +110,8 @@ export function parseJxl(text: string, options: ParseOptions = {}): JxlDocument 
     } else if (toGrid && c.lat !== undefined && c.lon !== undefined) {
       // A GNSS-measured setup or backsight. Its elevation needs a geoid model,
       // so shots from it get plan positions only.
-      const [east, north] = toGrid.forward([c.lon, c.lat]);
+      const [e, n] = toGrid.forward([c.lon, c.lat]);
+      const [north, east] = crs.adjustment ? applyPlaneAdjustment(crs.adjustment, n, e) : [n, e];
       ts.gridByName.set(text_(r, 'Name'), { north, east });
     }
   }

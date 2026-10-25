@@ -132,15 +132,24 @@ describe('Trimble Access 2025/2026 exports', () => {
     expect(crs.projection?.label).toContain('California zone 3');
   });
 
-  it('places grid-only points within a few centimetres of where GNSS put them', () => {
+  it('removes the site calibration when placing grid-only points', () => {
     const doc = parseJxl(access2026);
+    expect(doc.crs.adjustment?.translationNorth).toBe(0.065);
     const gnss = doc.points.find((p) => p.name === '1000')!;
     const { lat, lon } = gnss.coords;
     Object.assign(gnss.coords, { lat: undefined, lon: undefined, source: undefined });
-    projectGrid(doc.points, doc.crs.projection!.proj4);
-    // ~1e-6 degrees is about 10 cm; the file's grid includes a site calibration.
-    expect(Math.abs(gnss.coords.lat! - lat!)).toBeLessThan(1e-6);
-    expect(Math.abs(gnss.coords.lon! - lon!)).toBeLessThan(1e-6);
+    projectGrid(doc.points, doc.crs.projection!.proj4, doc.crs.adjustment);
+    // 1e-8 degrees is about 1 mm.
+    expect(Math.abs(gnss.coords.lat! - lat!)).toBeLessThan(1e-8);
+    expect(Math.abs(gnss.coords.lon! - lon!)).toBeLessThan(1e-8);
+  });
+
+  it('uses the ITRF2014 to NAD83(2011) transformation stored in the job', () => {
+    const { crs } = parseJxl(access2026);
+    expect(crs.nad83).toBe(true);
+    expect(crs.helmert.name).toContain('from job');
+    expect(crs.helmert.r[0]).toBe(-26.7815);
+    expect(crs.helmert.dr[1]).toBe(0.75749);
   });
 
   it('classifies keyed-in control, GNSS and offset points', () => {
