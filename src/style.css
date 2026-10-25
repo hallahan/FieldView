@@ -50,6 +50,8 @@ button.link { background: none; border: none; color: var(--accent); padding: 0; 
 #status:empty { display: none; }
 #status { padding: 8px 10px; background: var(--panel); border-radius: 6px; }
 #status.error { background: #ffe3e3; color: #c92a2a; }
+.check { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.check input { margin-top: 3px; width: 16px; height: 16px; flex-shrink: 0; }
 #projection { background: var(--panel); padding: 10px; border-radius: 6px; }
 #projection p { margin: 0 0 8px; }
 #proj-form { display: flex; gap: 6px; }

@@ -3,6 +3,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 import type { FeatureCollection, Point } from 'geojson';
 import { PRESETS } from './crs';
+import { currentEpoch, nad83ToWgs84 } from './datum';
 import { parseJxl, type JxlDocument, type JxlPoint, type ObservationType } from './jxl';
 import { projectGrid, resolveProjection } from './projection';
 
@@ -32,14 +33,23 @@ const PALETTE = ['#e8590c', '#1c7ed6', '#2f9e44', '#ae3ec9', '#f08c00', '#0c8599
 const TYPE_COLORS: Record<ObservationType, string> = {
   GNSS: '#1c7ed6',
   'Total station': '#e8590c',
+  Computed: '#ae3ec9',
   'Keyed in': '#2f9e44',
   Other: '#868e96',
 };
-const TYPE_SHORT: Record<ObservationType, string> = { GNSS: 'GNSS', 'Total station': 'TS', 'Keyed in': 'Keyed', Other: 'Other' };
+const TYPE_SHORT: Record<ObservationType, string> = {
+  GNSS: 'GNSS',
+  'Total station': 'TS',
+  Computed: 'Calc',
+  'Keyed in': 'Keyed',
+  Other: 'Other',
+};
 
 let doc: JxlDocument | undefined;
 let selected: number | undefined;
 let colorBy: 'code' | 'type' = 'code';
+let alignToImagery = readPref('alignToImagery') !== 'false';
+const mapEpoch = currentEpoch();
 
 let map: maplibregl.Map;
 try {
@@ -149,10 +159,10 @@ function toGeoJSON(): FeatureCollection {
   return {
     type: 'FeatureCollection',
     features: (doc?.points ?? [])
-      .filter((p) => p.coords.lat !== undefined)
+      .filter((p) => p.coords.mapLat !== undefined)
       .map((p) => ({
         type: 'Feature',
-        geometry: { type: 'Point', coordinates: [p.coords.lon!, p.coords.lat!] },
+        geometry: { type: 'Point', coordinates: [p.coords.mapLon!, p.coords.mapLat!] },
         properties: { index: p.index, name: p.name, code: p.code, deleted: p.deleted, color: color(p) },
       })),
   };
@@ -160,12 +170,14 @@ function toGeoJSON(): FeatureCollection {
 
 function colorFn(): (p: JxlPoint) => string {
   if (colorBy === 'type') return (p) => TYPE_COLORS[p.type];
+  // Colour by feature code: the first word, so "PCC" and "PCC EC" match.
+  const key = (p: JxlPoint) => p.code.split(/\s+/)[0];
   const counts = new Map<string, number>();
-  for (const p of doc?.points ?? []) counts.set(p.code, (counts.get(p.code) ?? 0) + 1);
+  for (const p of doc?.points ?? []) counts.set(key(p), (counts.get(key(p)) ?? 0) + 1);
   const ranked = [...counts.keys()].sort((a, b) => counts.get(b)! - counts.get(a)!);
   // The most common codes get distinct colours; the rest share grey.
   const byCode = new Map(ranked.map((code, i) => [code, PALETTE[Math.min(i, PALETTE.length - 1)]]));
-  return (p) => byCode.get(p.code)!;
+  return (p) => byCode.get(key(p))!;
 }
 
 document.querySelectorAll<HTMLButtonElement>('#color-by button').forEach((b) =>
@@ -180,10 +192,13 @@ document.querySelectorAll<HTMLButtonElement>('#color-by button').forEach((b) =>
 function refreshMap(fit: boolean) {
   (map.getSource('points') as GeoJSONSource | undefined)?.setData(toGeoJSON());
   if (!fit || !doc) return;
-  const located = doc.points.filter((p) => p.coords.lat !== undefined);
-  if (!located.length) return;
+  const located = doc.points.filter((p) => p.coords.mapLat !== undefined);
+  // Frame what was measured on this job: keyed-in control can be kilometres away.
+  const measured = located.filter((p) => p.type !== 'Keyed in' && !p.deleted);
+  const framed = measured.length ? measured : located;
+  if (!framed.length) return;
   const bounds = new maplibregl.LngLatBounds();
-  for (const p of located) bounds.extend([p.coords.lon!, p.coords.lat!]);
+  for (const p of framed) bounds.extend([p.coords.mapLon!, p.coords.mapLat!]);
   map.fitBounds(bounds, { padding: isSheet() ? 30 : 60, maxZoom: 18, duration: 600 });
 }
 
@@ -217,11 +232,12 @@ function load(text: string, name: string, size: number, gridDef?: { input: strin
   // Place grid-only points straight away when the job's projection is known.
   let projected = 0;
   let projectionError = '';
-  const projection = gridDef ?? (doc.crs.preset && { input: doc.crs.preset.id, proj4: doc.crs.preset.proj4 });
-  const projectionLabel = gridDef ? gridDef.input : doc.crs.preset?.label;
+  const detected = doc.crs.projection;
+  const projection = gridDef ?? (detected && { input: detected.id ?? '', proj4: detected.proj4 });
+  const projectionLabel = gridDef ? gridDef.input : detected?.label;
   if (doc.gridOnlyCount && projection) {
     try {
-      projected = projectGrid(doc.points, projection.proj4);
+      projected = projectGrid(doc.points, projection.proj4, doc.crs.adjustment);
       $<HTMLInputElement>('#proj-input').value = projection.input;
     } catch (err) {
       // For a detected projection, quietly leave it to the user to pick one.
@@ -229,7 +245,7 @@ function load(text: string, name: string, size: number, gridDef?: { input: strin
     }
   }
   const mapped = doc.points.filter((p) => p.coords.lat !== undefined).length;
-  const types = (['GNSS', 'Total station', 'Keyed in'] as ObservationType[])
+  const types = (['GNSS', 'Total station', 'Computed', 'Keyed in'] as ObservationType[])
     .map((t) => [t, doc!.points.filter((p) => p.type === t).length] as const)
     .filter(([, n]) => n)
     .map(([t, n]) => `${n} ${t === 'GNSS' ? t : t.toLowerCase()}`);
@@ -237,6 +253,8 @@ function load(text: string, name: string, size: number, gridDef?: { input: strin
     `<strong>${esc(name)}</strong>: ${doc.points.length} points${types.length ? ` (${types.join(', ')})` : ''}, ${mapped} on the map.` +
       (projected ? `<br><span class="muted">${projected} grid points placed using ${esc(projectionLabel!)}.</span>` : ''),
   );
+  $('#align-row').hidden = !doc.crs.nad83;
+  alignPoints();
   const remaining = doc.points.filter((p) => p.coords.lat === undefined && p.coords.north !== undefined).length;
   $('#projection').hidden = remaining === 0;
   $('#grid-count').textContent = String(doc.gridOnlyCount);
@@ -306,6 +324,63 @@ $('#proj-form').addEventListener('submit', async (e) => {
   }
 });
 
+/**
+ * Work out where each point is drawn. Lat/long in a NAD83 job are shifted to
+ * WGS84 at today's epoch so they sit on the imagery; the file's values are
+ * left untouched for display.
+ */
+function alignPoints() {
+  if (!doc) return;
+  const shift = alignToImagery && doc.crs.nad83;
+  let moved = 0;
+  for (const p of doc.points) {
+    const c = p.coords;
+    if (c.lat === undefined || c.lon === undefined) continue;
+    if (shift) {
+      const w = nad83ToWgs84(c.lat, c.lon, c.height ?? 0, mapEpoch, doc.crs.datumChain);
+      c.mapLat = w.lat;
+      c.mapLon = w.lon;
+      if (!moved) moved = groundDistance(c.lat, c.lon, w.lat, w.lon);
+    } else {
+      c.mapLat = c.lat;
+      c.mapLon = c.lon;
+    }
+  }
+  $('#align-shift').textContent = shift && moved ? `(moves points ${moved.toFixed(2)} m)` : '';
+}
+
+function groundDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const r = Math.PI / 180;
+  const dn = (lat2 - lat1) * r * 6371000;
+  const de = (lon2 - lon1) * r * 6371000 * Math.cos(lat1 * r);
+  return Math.hypot(dn, de);
+}
+
+$<HTMLInputElement>('#align-toggle').checked = alignToImagery;
+$<HTMLInputElement>('#align-toggle').addEventListener('change', (e) => {
+  alignToImagery = (e.target as HTMLInputElement).checked;
+  writePref('alignToImagery', String(alignToImagery));
+  alignPoints();
+  refreshMap(false);
+  renderDetail();
+});
+
+function readPref(key: string): string | null {
+  try {
+    return localStorage.getItem(`fieldview.${key}`);
+  } catch {
+    return null;
+  }
+}
+
+function writePref(key: string, value: string) {
+  try {
+    localStorage.setItem(`fieldview.${key}`, value);
+  } catch {
+    // Private mode etc.; the setting just won't stick.
+  }
+}
+
 // ---------------------------------------------------------------- sidebar
 
 // On narrow screens the sidebar is a panel under the map that can be expanded.
@@ -360,7 +435,7 @@ function select(index: number, fly: boolean) {
     setSheet(false);
     requestAnimationFrame(() => $('#point-detail').scrollIntoView({ block: 'start' }));
   }
-  if (fly && p.coords.lat !== undefined) map.flyTo({ center: [p.coords.lon!, p.coords.lat!], zoom: Math.max(map.getZoom(), 17) });
+  if (fly && p.coords.mapLat !== undefined) map.flyTo({ center: [p.coords.mapLon!, p.coords.mapLat!], zoom: Math.max(map.getZoom(), 17) });
   renderTable();
   renderDetail();
   if (!isSheet()) document.querySelector(`#points-table tr[data-index="${index}"]`)?.scrollIntoView({ block: 'nearest' });
@@ -381,7 +456,7 @@ function renderDetail() {
       <button class="close" title="Close">×</button>
     </div>
     ${p.deleted ? '<p class="warn">This point is marked deleted in the field book.</p>' : ''}
-    ${p.features.map((f) => table(`Feature: ${f.name}`, Object.entries(f.attributes))).join('')}
+    ${p.features.map((f) => table(`Feature: ${f.name}`, Object.entries(f.attributes).filter(([, v]) => v !== ''))).join('')}
     ${table('Position', positionEntries(p))}
     <details><summary>All attributes (${Object.keys(p.attributes).length})</summary>${table('', Object.entries(p.attributes))}</details>
   `;
@@ -407,6 +482,9 @@ function positionEntries(p: JxlPoint): [string, string][] {
     out.push(['Latitude', c.lat.toFixed(9)], ['Longitude', c.lon!.toFixed(9)]);
     if (c.height !== undefined) out.push(['Ellipsoid height (m)', c.height.toFixed(3)]);
     out.push(['Lat/long from', c.source === 'Grid' ? 'Grid coordinates' : c.source!]);
+    if (c.mapLat !== undefined && (c.mapLat !== c.lat || c.mapLon !== c.lon)) {
+      out.push([`Map position (ITRF2020 ≈ WGS84, ${mapEpoch.toFixed(2)})`, `${c.mapLat.toFixed(9)}, ${c.mapLon!.toFixed(9)}`]);
+    }
   }
   out.push(['Record ID', p.id], ['From', p.origin]);
   return out;

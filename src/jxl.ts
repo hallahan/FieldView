@@ -5,6 +5,7 @@
 
 import proj4 from 'proj4';
 import { detectCrs, type CrsInfo } from './crs';
+import { applyPlaneAdjustment } from './datum';
 import { attrEntries, child, children, flatten, num, text_, type Attrs } from './xml';
 import { reduceTotalStation, type TsContext } from './totalstation';
 
@@ -21,9 +22,12 @@ export interface Coordinates {
   source?: 'WGS84' | 'ECEF' | 'Grid';
   /** Grid position was computed here from a total station observation. */
   reduced?: boolean;
+  /** Where to draw the point on the basemap, after any datum shift. */
+  mapLat?: number;
+  mapLon?: number;
 }
 
-export type ObservationType = 'GNSS' | 'Total station' | 'Keyed in' | 'Other';
+export type ObservationType = 'GNSS' | 'Total station' | 'Computed' | 'Keyed in' | 'Other';
 
 export interface JxlPoint {
   /** Stable index into JxlDocument.points. */
@@ -78,7 +82,7 @@ export function parseJxl(text: string, options: ParseOptions = {}): JxlDocument 
   const fieldBook = child(root, 'FieldBook');
   const reductions = child(root, 'Reductions');
   const crs = detectCrs(root);
-  const gridDef = options.proj4 ?? crs.preset?.proj4;
+  const gridDef = options.proj4 ?? crs.projection?.proj4;
   const toGrid = gridDef ? proj4('EPSG:4326', gridDef) : undefined;
 
   const records = fieldBook ? children(fieldBook, 'PointRecord') : [];
@@ -106,7 +110,8 @@ export function parseJxl(text: string, options: ParseOptions = {}): JxlDocument 
     } else if (toGrid && c.lat !== undefined && c.lon !== undefined) {
       // A GNSS-measured setup or backsight. Its elevation needs a geoid model,
       // so shots from it get plan positions only.
-      const [east, north] = toGrid.forward([c.lon, c.lat]);
+      const [e, n] = toGrid.forward([c.lon, c.lat]);
+      const [north, east] = crs.adjustment ? applyPlaneAdjustment(crs.adjustment, n, e) : [n, e];
       ts.gridByName.set(text_(r, 'Name'), { north, east });
     }
   }
@@ -134,7 +139,7 @@ export function parseJxl(text: string, options: ParseOptions = {}): JxlDocument 
         code: text_(p, 'Code') || (record ? text_(record, 'Code') : ''),
         coords: withFallback(coordinates(p), record && recordCoords.get(record)),
         origin: 'Reductions',
-        type: record ? observationType(record) : 'Other',
+        type: observationType(record ?? p),
         deleted: false,
         attributes,
         features,
@@ -166,7 +171,7 @@ function metadata(root: Element, points: JxlPoint[], crs: CrsInfo): MetadataSect
   const sections: MetadataSection[] = [];
 
   sections.push({ title: 'Datum and projection', entries: crs.entries });
-  sections.push({ title: 'Job', entries: attrEntries(root) });
+  sections.push({ title: 'Job', entries: attrEntries(root).filter(([k]) => !k.startsWith('xmlns') && !k.startsWith('xsi:')) });
 
   const fieldBook = child(root, 'FieldBook');
   if (fieldBook) {
@@ -178,7 +183,8 @@ function metadata(root: Element, points: JxlPoint[], crs: CrsInfo): MetadataSect
     for (const [tag, title] of singletons) {
       const els = children(fieldBook, tag);
       const el = els[els.length - 1];
-      if (el) sections.push({ title, entries: Object.entries(flatten(el)) });
+      // Skip the record's own @ID / @TimeStamp bookkeeping.
+      if (el) sections.push({ title, entries: Object.entries(flatten(el)).filter(([k]) => !k.startsWith('@')) });
     }
   }
 
@@ -198,7 +204,7 @@ function metadata(root: Element, points: JxlPoint[], crs: CrsInfo): MetadataSect
   summary.push(['Points with WGS84 position', String(points.filter((p) => p.coords.lat !== undefined).length)]);
   const codes = new Set(points.map((p) => p.code).filter(Boolean));
   summary.push(['Distinct codes', String(codes.size)]);
-  for (const type of ['GNSS', 'Total station', 'Keyed in', 'Other'] as ObservationType[]) {
+  for (const type of ['GNSS', 'Total station', 'Computed', 'Keyed in', 'Other'] as ObservationType[]) {
     const n = points.filter((p) => p.type === type).length;
     if (n) summary.push([`${type} points`, String(n)]);
   }
@@ -232,7 +238,10 @@ function metadata(root: Element, points: JxlPoint[], crs: CrsInfo): MetadataSect
     });
   }
 
-  return sections;
+  // Empty fields are common (unused job properties etc.) and only add noise.
+  return sections
+    .map((s) => ({ ...s, entries: s.entries.filter(([, v]) => v !== '') }))
+    .filter((s) => s.entries.length);
 }
 
 function coordinates(el: Element): Coordinates {
@@ -278,18 +287,22 @@ function withFallback(c: Coordinates, fallback: Coordinates | undefined): Coordi
 }
 
 /**
- * Classify a FieldBook point record by how it was measured. Total station
- * shots reference a station setup and carry circle readings; GNSS shots
- * reference an antenna and carry ECEF or delta vectors.
+ * Classify a point by how it was measured. Total station shots reference a
+ * station setup and carry circle readings; GNSS shots carry ECEF or delta
+ * vectors; offsets and COGO points are computed from other points. Falls back
+ * to the SurveyMethod / Method text, which Reductions points also carry.
  */
 export function observationType(r: Element): ObservationType {
   if (child(r, 'Circle') || child(r, 'StationID') || child(r, 'BackBearingID') || child(r, 'TargetID')) return 'Total station';
+  const method = text_(r, 'Method').toLowerCase();
+  if (child(r, 'Polar') || child(r, 'SourcePoint') || /intersection|offset|cogo|computed/.test(method)) return 'Computed';
   if (child(r, 'ECEFDeltas') || child(r, 'ECEF') || child(r, 'AntennaID') || child(r, 'RTK_Base') || child(r, 'QualityControl1')) {
     return 'GNSS';
   }
-  const method = text_(r, 'Method').toLowerCase();
-  if (method.includes('keyed')) return 'Keyed in';
-  if (method.includes('gnss') || method.includes('rtk') || method.includes('fastatic')) return 'GNSS';
+  const survey = text_(r, 'SurveyMethod').toLowerCase();
+  if (survey.includes('keyed') || method.includes('keyed')) return 'Keyed in';
+  if (/rtk|gnss|gps|static|ppk/.test(survey + ' ' + method)) return 'GNSS';
+  if (/conventional|totalstation|turnedangle|direct|backsight|resection/.test(survey + ' ' + method)) return 'Total station';
   return 'Other';
 }
 

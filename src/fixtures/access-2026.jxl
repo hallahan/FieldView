@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Synthetic fixture shaped like a Trimble Access 2025/2026 JobXML 6.3x export. Not real survey data. -->
+<JOBFile jobName="fixture" version="6.34" product="Trimble Access" productVersion="26.10" TimeStamp="2026-09-24T07:38:38"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <FieldBook>
+        <UnitsRecord ID="00000002" TimeStamp="">
+            <DistanceUnits>USSurveyFeet</DistanceUnits>
+        </UnitsRecord>
+        <EllipsoidRecord ID="00000004" TimeStamp="2026-09-24T07:38:38">
+            <EarthRadius>6378137</EarthRadius>
+            <Flattening>0.00335281068118</Flattening>
+        </EllipsoidRecord>
+        <ProjectionRecord ID="00000005" TimeStamp="2026-09-24T07:38:38">
+            <Projection>
+                <Type>Lambert2Parallel</Type>
+                <CentralLatitude>36.5</CentralLatitude>
+                <CentralLongitude>-120.5</CentralLongitude>
+                <FalseNorthing>500000</FalseNorthing>
+                <FalseEasting>2000000</FalseEasting>
+                <Parallel1>38.433333333333</Parallel1>
+                <Parallel2>37.066666666667</Parallel2>
+            </Projection>
+        </ProjectionRecord>
+        <DatumRecord ID="00000006" TimeStamp="2026-09-24T07:38:38">
+            <Type>ThreeParameter</Type>
+            <ReferenceGlobalFrameEpoch>2025.00</ReferenceGlobalFrameEpoch>
+            <ReferenceGlobalFrameName>NAD83(2011)</ReferenceGlobalFrameName>
+            <DisplacementModelName>HTDP V3.4.0</DisplacementModelName>
+        </DatumRecord>
+        <KinematicTransformationsRecord ID="00000008" TimeStamp="2026-09-24T07:38:38">
+            <KinematicTransformation>
+                <Name>ITRF2014 to NAD83(2011)</Name>
+                <SourceRealization>ITRF2014</SourceRealization>
+                <TargetRealization>NAD83(2011)</TargetRealization>
+                <ReferenceEpoch>2010.00</ReferenceEpoch>
+                <Type>FourteenParameters</Type>
+                <TranslationX>1.0053</TranslationX>
+                <TranslationY>-1.90921</TranslationY>
+                <TranslationZ>-0.54157</TranslationZ>
+                <RotationX>-26.7815</RotationX>
+                <RotationY>0.42078</RotationY>
+                <RotationZ>-10.93254</RotationZ>
+                <Scale>0.36891</Scale>
+                <DerivativeTranslationX>0.00079</DerivativeTranslationX>
+                <DerivativeTranslationY>-0.0006</DerivativeTranslationY>
+                <DerivativeTranslationZ>-0.00144</DerivativeTranslationZ>
+                <DerivativeRotationX>-0.06669</DerivativeRotationX>
+                <DerivativeRotationY>0.75749</DerivativeRotationY>
+                <DerivativeRotationZ>0.05129</DerivativeRotationZ>
+                <DerivativeScale>-0.07201</DerivativeScale>
+            </KinematicTransformation>
+            <KinematicTransformation>
+                <Name>ITRF2020 to ITRF2014</Name>
+                <SourceRealization>ITRF2020</SourceRealization>
+                <TargetRealization>ITRF2014</TargetRealization>
+                <ReferenceEpoch>2015.00</ReferenceEpoch>
+                <Type>FourteenParameters</Type>
+            </KinematicTransformation>
+        </KinematicTransformationsRecord>
+        <HorizontalAdjustmentRecord ID="0000000a" TimeStamp="2026-09-24T07:38:38">
+            <Type>PlaneAdjustment</Type>
+            <OriginNorth>600000</OriginNorth>
+            <OriginEast>1870000</OriginEast>
+            <TranslationNorth>0.065</TranslationNorth>
+            <TranslationEast>-0.04</TranslationEast>
+            <Rotation>-0.0000085</Rotation>
+            <ScaleFactor>1.00000012</ScaleFactor>
+        </HorizontalAdjustmentRecord>
+        <VerticalAdjustmentRecord ID="0000000b" TimeStamp="2026-09-24T07:38:38">
+            <Type>GeoidModelAndInclinedPlane</Type>
+            <GeoidName>GEOID18 (Conus)</GeoidName>
+        </VerticalAdjustmentRecord>
+        <JobPropertiesRecord ID="0000000c" TimeStamp="2026-09-24T07:38:38">
+            <Reference />
+            <Operator />
+        </JobPropertiesRecord>
+        <CoordinateSystemRecord ID="0000000d" TimeStamp="2026-09-24T07:38:38">
+            <SystemName>United States/NAD83/CA SRS</SystemName>
+            <ZoneName>California Epoch 2025.00 Zone 3</ZoneName>
+            <DatumName>CA SRS Epoch 2025.00 (NAD83)</DatumName>
+        </CoordinateSystemRecord>
+        <PointRecord ID="00000014" TimeStamp="2026-09-24T07:38:38">
+            <Name>CTRL1</Name>
+            <Code>CTRLP</Code>
+            <Method>Coordinates</Method>
+            <SurveyMethod>KeyedIn</SurveyMethod>
+            <Classification>Normal</Classification>
+            <Deleted>false</Deleted>
+            <Grid>
+                <North>595703.71348743</North>
+                <East>1875353.97714</East>
+                <Elevation>18.41300482601</Elevation>
+            </Grid>
+        </PointRecord>
+        <PointRecord ID="00000077" TimeStamp="2026-09-24T10:58:02">
+            <Name>1000</Name>
+            <Code>WALB BL</Code>
+            <Method>GpsStaticObservation</Method>
+            <SurveyMethod>NetworkRTK</SurveyMethod>
+            <Classification>Normal</Classification>
+            <Deleted>false</Deleted>
+            <Features>
+                <Feature Name="WALB">
+                    <Attribute><Name>Material</Name><Value>Concrete</Value><Type>Menu</Type><ItemIndex>2</ItemIndex></Attribute>
+                    <Attribute><Name>Photo_1</Name><Value /><Type>Photo</Type></Attribute>
+                </Feature>
+            </Features>
+            <ECEFDeltas><DeltaX>8091.7</DeltaX><DeltaY>4743.3</DeltaY><DeltaZ>10661.0</DeltaZ></ECEFDeltas>
+            <RTK_Base>BASE</RTK_Base>
+            <AntennaID>00000076</AntennaID>
+        </PointRecord>
+        <PointRecord ID="000003f6" TimeStamp="2026-09-24T12:42:09">
+            <Name>1001</Name>
+            <Code>TREE</Code>
+            <Method>BearingDistancePointIntersection</Method>
+            <SurveyMethod>NetworkRTK</SurveyMethod>
+            <Classification>Normal</Classification>
+            <Deleted>false</Deleted>
+            <SourcePoint>1000</SourcePoint>
+        </PointRecord>
+    </FieldBook>
+    <Reductions>
+        <Point>
+            <ID>00000014</ID>
+            <Name>CTRL1</Name>
+            <Code>CTRLP</Code>
+            <SurveyMethod>KeyedIn</SurveyMethod>
+            <Grid>
+                <North>595703.71348743</North>
+                <East>1875353.97714</East>
+                <Elevation>18.41300482601</Elevation>
+            </Grid>
+        </Point>
+        <Point>
+            <ID>00000077</ID>
+            <Name>1000</Name>
+            <Code>WALB BL</Code>
+            <SurveyMethod>NetworkRTK</SurveyMethod>
+            <WGS84>
+                <Latitude>37.3125</Latitude>
+                <Longitude>-121.9352</Longitude>
+                <Height>12.0</Height>
+            </WGS84>
+            <Grid>
+                <North>591147.54386229</North>
+                <East>1872785.40995503</East>
+                <Elevation>44.6</Elevation>
+            </Grid>
+        </Point>
+        <Point>
+            <ID>000003f6</ID>
+            <Name>1001</Name>
+            <Code>TREE</Code>
+            <SurveyMethod>NetworkRTK</SurveyMethod>
+            <Grid>
+                <North>591152.0</North>
+                <East>1872790.0</East>
+                <Elevation>46.0</Elevation>
+            </Grid>
+        </Point>
+    </Reductions>
+</JOBFile>
