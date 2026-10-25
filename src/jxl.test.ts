@@ -147,9 +147,12 @@ describe('Trimble Access 2025/2026 exports', () => {
   it('uses the ITRF2014 to NAD83(2011) transformation stored in the job', () => {
     const { crs } = parseJxl(access2026);
     expect(crs.nad83).toBe(true);
-    expect(crs.helmert.name).toContain('from job');
-    expect(crs.helmert.r[0]).toBe(-26.7815);
-    expect(crs.helmert.dr[1]).toBe(0.75749);
+    const [toNad83, toItrf2014] = crs.datumChain;
+    expect(toNad83.name).toContain('from job');
+    expect(toNad83.r[0]).toBe(-26.7815);
+    expect(toNad83.dr[1]).toBe(0.75749);
+    // The fixture's ITRF2020 entry has no parameters, so the IERS values are used.
+    expect(toItrf2014.name).toBe('ITRF2020 to ITRF2014 (IERS)');
   });
 
   it('classifies keyed-in control, GNSS and offset points', () => {

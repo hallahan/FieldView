@@ -3,6 +3,7 @@ import {
   applyPlaneAdjustment,
   currentEpoch,
   ITRF2014_TO_NAD83_2011,
+  ITRF2020_TO_ITRF2014,
   nad83ToWgs84,
   removePlaneAdjustment,
   type PlaneAdjustment,
@@ -18,9 +19,19 @@ describe('nad83ToWgs84', () => {
   it('matches NGS for CORS CCCC', () => {
     const nad = { lat: dms(35, 33, 55.11846), lon: -dms(117, 40, 16.17436), h: 814.659 };
     const itrf = { lat: dms(35, 33, 55.13188), lon: -dms(117, 40, 16.22541), h: 813.973 };
-    const out = nad83ToWgs84(nad.lat, nad.lon, nad.h, 2010.0, ITRF2014_TO_NAD83_2011);
+    const out = nad83ToWgs84(nad.lat, nad.lon, nad.h, 2010.0, [ITRF2014_TO_NAD83_2011]);
     expect(metres(out.lat - itrf.lat, out.lon - itrf.lon, itrf.lat)).toBeLessThan(0.01);
     expect(out.height).toBeCloseTo(itrf.h, 2);
+  });
+
+  it('adds the ITRF2014 to ITRF2020 step, about a centimetre', () => {
+    const to2014 = nad83ToWgs84(37.3179, -121.9407, 10, 2026.8, [ITRF2014_TO_NAD83_2011]);
+    const to2020 = nad83ToWgs84(37.3179, -121.9407, 10, 2026.8);
+    const d = metres(to2020.lat - to2014.lat, to2020.lon - to2014.lon, 37.3179);
+    expect(d).toBeGreaterThan(0.0005);
+    expect(d).toBeLessThan(0.02);
+    expect(to2020.height - to2014.height).not.toBe(0);
+    expect(ITRF2020_TO_ITRF2014.epoch).toBe(2015);
   });
 
   it('moves California points about 1.5 m', () => {

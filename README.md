@@ -18,7 +18,7 @@ NAD83(2011) / California State Plane Zone 3 (EPSG:6419, US-foot variant EPSG:642
 
 ### Lining up with the basemap
 
-Basemap imagery is referenced to WGS84, which tracks ITRF, while NAD83(2011) is fixed to the North American plate. In California the two are about 1.5 m apart. For NAD83 jobs, FieldView moves each point onto WGS84 at today's date for drawing. It uses the time-dependent 14-parameter ITRF2014 to NAD83(2011) transformation, taken from the job's own record when Trimble Access stored one and otherwise from the NGS values. The file's coordinates are shown unchanged, and a checkbox turns the shift off for comparison.
+Basemap imagery is referenced to WGS84, which tracks ITRF, while NAD83(2011) is fixed to the North American plate. In California the two are about 1.5 m apart. For NAD83 jobs, FieldView moves each point onto WGS84 at today's date for drawing. It chains two time-dependent 14-parameter transformations, NAD83(2011) to ITRF2014 to ITRF2020 (≈ WGS84 G2296), the same way Trimble Access does, because NGS defines NAD83(2011) only against ITRF2014. Each step is taken from the job's `KinematicTransformationsRecord` when Trimble Access stored it, and otherwise from the NGS or IERS values. The file's coordinates are shown unchanged, and a checkbox turns the shift off for comparison.
 
 This does not model deformation within the plate, which HTDP covers. In coastal California that is a few centimetres a year, so epoch 2017.50 and 2025.00 coordinates of the same mark get the same shift, and a few decimetres of difference remains. That is well inside the accuracy of typical web imagery.
 

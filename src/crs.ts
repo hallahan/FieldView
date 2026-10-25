@@ -1,6 +1,6 @@
 // Work out the job's datum, epoch and projection from the JobXML.
 
-import { helmertFromJob, ITRF2014_TO_NAD83_2011, planeAdjustmentFromJob, type Helmert, type PlaneAdjustment } from './datum';
+import { nad83ChainFromJob, planeAdjustmentFromJob, type Helmert, type PlaneAdjustment } from './datum';
 import { child, num, text_ } from './xml';
 
 export interface CrsPreset {
@@ -37,8 +37,8 @@ export interface CrsInfo {
   adjustment?: PlaneAdjustment;
   /** Lat/long are NAD83, so they need shifting to sit on WGS84 imagery. */
   nad83: boolean;
-  /** ITRF2014 → NAD83(2011) transformation to use for that shift. */
-  helmert: Helmert;
+  /** NAD83(2011) → ITRF2014 → ITRF2020 transformations used for that shift. */
+  datumChain: Helmert[];
   /** Rows for the metadata panel. */
   entries: [string, string][];
 }
@@ -79,7 +79,7 @@ export function detectCrs(root: Element): CrsInfo {
 
   const adjustment = planeAdjustmentFromJob(root);
   const nad83 = /nad\s*83|nad\s*1983|ca\s*srs/i.test(`${referenceFrame} ${datumName} ${systemName}`);
-  const helmert = helmertFromJob(root) ?? ITRF2014_TO_NAD83_2011;
+  const datumChain = nad83ChainFromJob(root);
 
   const entries: [string, string][] = [];
   if (systemName) entries.push(['System', systemName]);
@@ -107,7 +107,10 @@ export function detectCrs(root: Element): CrsInfo {
   }
   if (distanceUnits) entries.push(['Distance units', distanceUnits]);
   entries.push(['Grid projection used', chosen ? chosen.label : 'Not recognised: enter one to place grid-only points']);
-  if (nad83) entries.push(['NAD83 → WGS84 for the map', helmert.name]);
+  if (nad83) {
+    entries.push(['NAD83 → WGS84 for the map', `NAD83(2011) → ITRF2014 → ITRF2020 (≈ WGS84 G2296)`]);
+    datumChain.forEach((h, i) => entries.push([`Step ${i + 1}`, `${h.name}, reversed`]));
+  }
 
   return {
     systemName,
@@ -119,7 +122,7 @@ export function detectCrs(root: Element): CrsInfo {
     projection: chosen,
     adjustment,
     nad83,
-    helmert,
+    datumChain,
     entries,
   };
 }

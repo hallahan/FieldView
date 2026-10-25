@@ -337,7 +337,7 @@ function alignPoints() {
     const c = p.coords;
     if (c.lat === undefined || c.lon === undefined) continue;
     if (shift) {
-      const w = nad83ToWgs84(c.lat, c.lon, c.height ?? 0, mapEpoch, doc.crs.helmert);
+      const w = nad83ToWgs84(c.lat, c.lon, c.height ?? 0, mapEpoch, doc.crs.datumChain);
       c.mapLat = w.lat;
       c.mapLon = w.lon;
       if (!moved) moved = groundDistance(c.lat, c.lon, w.lat, w.lon);
@@ -483,7 +483,7 @@ function positionEntries(p: JxlPoint): [string, string][] {
     if (c.height !== undefined) out.push(['Ellipsoid height (m)', c.height.toFixed(3)]);
     out.push(['Lat/long from', c.source === 'Grid' ? 'Grid coordinates' : c.source!]);
     if (c.mapLat !== undefined && (c.mapLat !== c.lat || c.mapLon !== c.lon)) {
-      out.push([`Map position (WGS84, ${mapEpoch.toFixed(2)})`, `${c.mapLat.toFixed(9)}, ${c.mapLon!.toFixed(9)}`]);
+      out.push([`Map position (ITRF2020 ≈ WGS84, ${mapEpoch.toFixed(2)})`, `${c.mapLat.toFixed(9)}, ${c.mapLon!.toFixed(9)}`]);
     }
   }
   out.push(['Record ID', p.id], ['From', p.origin]);
