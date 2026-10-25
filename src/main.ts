@@ -1,7 +1,7 @@
 import maplibregl, { type GeoJSONSource, type StyleSpecification } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
-import type { FeatureCollection } from 'geojson';
+import type { FeatureCollection, Point } from 'geojson';
 import { parseJxl, type JxlDocument, type JxlPoint } from './jxl';
 import { projectGrid, resolveProjection } from './projection';
 
@@ -31,14 +31,21 @@ const PALETTE = ['#e8590c', '#1c7ed6', '#2f9e44', '#ae3ec9', '#f08c00', '#0c8599
 let doc: JxlDocument | undefined;
 let selected: number | undefined;
 
-const map = new maplibregl.Map({
-  container: 'map',
-  style: BASEMAPS.streets,
-  center: [0, 20],
-  zoom: 1.5,
-  attributionControl: { compact: true },
-});
+let map: maplibregl.Map;
+try {
+  map = new maplibregl.Map({
+    container: 'map',
+    style: BASEMAPS.streets,
+    center: [0, 20],
+    zoom: 1.5,
+    attributionControl: { compact: true },
+  });
+} catch (e) {
+  $('#map').innerHTML = `<p class="map-error">The map can't start in this browser (WebGL is unavailable). Points and metadata still work in the panel.<br><small>${esc(String(e))}</small></p>`;
+  throw e;
+}
 map.addControl(new maplibregl.NavigationControl(), 'top-right');
+map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: true }), 'top-right');
 map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
 
 // Layers are re-added whenever the basemap style is swapped.
@@ -105,9 +112,24 @@ function addPointLayers() {
   });
 }
 
-map.on('click', 'points-circle', (e) => {
-  const f = e.features?.[0];
-  if (f) select(Number(f.properties.index), false);
+// Pick the nearest point within a finger-sized box rather than requiring an
+// exact hit on a small circle.
+const TAP_TOLERANCE = 14;
+map.on('click', (e) => {
+  if (!map.getLayer('points-circle')) return;
+  const { x, y } = e.point;
+  const hits = map.queryRenderedFeatures(
+    [
+      [x - TAP_TOLERANCE, y - TAP_TOLERANCE],
+      [x + TAP_TOLERANCE, y + TAP_TOLERANCE],
+    ],
+    { layers: ['points-circle'] },
+  );
+  if (!hits.length) return;
+  const nearest = hits
+    .map((f) => ({ f, d: map.project((f.geometry as Point).coordinates as [number, number]).dist(e.point) }))
+    .sort((a, b) => a.d - b.d)[0].f;
+  select(Number(nearest.properties.index), false);
 });
 map.on('mouseenter', 'points-circle', () => (map.getCanvas().style.cursor = 'pointer'));
 map.on('mouseleave', 'points-circle', () => (map.getCanvas().style.cursor = ''));
@@ -141,7 +163,7 @@ function refreshMap(fit: boolean) {
   if (!located.length) return;
   const bounds = new maplibregl.LngLatBounds();
   for (const p of located) bounds.extend([p.coords.lon!, p.coords.lat!]);
-  map.fitBounds(bounds, { padding: 60, maxZoom: 18, duration: 600 });
+  map.fitBounds(bounds, { padding: isSheet() ? 30 : 60, maxZoom: 18, duration: 600 });
 }
 
 // ---------------------------------------------------------------- loading
@@ -158,6 +180,8 @@ function load(text: string, name: string, size: number) {
     return;
   }
   selected = undefined;
+  document.body.classList.add('loaded');
+  $('#dropzone strong').textContent = 'Open another file';
   doc.metadata.unshift({
     title: 'File',
     entries: [
@@ -174,6 +198,7 @@ function load(text: string, name: string, size: number) {
   renderTable();
   renderMetadata();
   renderDetail();
+  setSheet(false);
   if (map.isStyleLoaded()) addPointLayers();
   setSelectedFilter();
   refreshMap(true);
@@ -186,8 +211,11 @@ function setStatus(html: string, error = false) {
 }
 
 $<HTMLInputElement>('#file-input').addEventListener('change', (e) => {
-  const file = (e.target as HTMLInputElement).files?.[0];
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
   if (file) loadFile(file);
+  // Allow re-opening the same file after editing it.
+  input.value = '';
 });
 
 $('#sample-btn').addEventListener('click', async () => {
@@ -233,6 +261,14 @@ $('#proj-form').addEventListener('submit', async (e) => {
 
 // ---------------------------------------------------------------- sidebar
 
+// On narrow screens the sidebar is a panel under the map that can be expanded.
+const sheet = $('#sidebar');
+const isSheet = () => window.matchMedia('(max-width: 760px)').matches;
+function setSheet(expanded: boolean) {
+  sheet.classList.toggle('expanded', expanded);
+}
+$('#sheet-handle').addEventListener('click', () => setSheet(!sheet.classList.contains('expanded')));
+
 document.querySelectorAll<HTMLButtonElement>('#tabs button').forEach((b) =>
   b.addEventListener('click', () => showTab(b.dataset.tab!)),
 );
@@ -272,10 +308,15 @@ function select(index: number, fly: boolean) {
   const p = doc.points[index];
   showTab('points');
   setSelectedFilter();
+  if (isSheet()) {
+    // Keep the map visible above the sheet, with the detail card in view.
+    setSheet(false);
+    requestAnimationFrame(() => $('#point-detail').scrollIntoView({ block: 'start' }));
+  }
   if (fly && p.coords.lat !== undefined) map.flyTo({ center: [p.coords.lon!, p.coords.lat!], zoom: Math.max(map.getZoom(), 17) });
   renderTable();
   renderDetail();
-  document.querySelector(`#points-table tr[data-index="${index}"]`)?.scrollIntoView({ block: 'nearest' });
+  if (!isSheet()) document.querySelector(`#points-table tr[data-index="${index}"]`)?.scrollIntoView({ block: 'nearest' });
 }
 
 function setSelectedFilter() {
@@ -293,8 +334,8 @@ function renderDetail() {
       <button class="close" title="Close">×</button>
     </div>
     ${p.deleted ? '<p class="warn">This point is marked deleted in the field book.</p>' : ''}
-    ${table('Position', positionEntries(p))}
     ${p.features.map((f) => table(`Feature: ${f.name}`, Object.entries(f.attributes))).join('')}
+    ${table('Position', positionEntries(p))}
     <details><summary>All attributes (${Object.keys(p.attributes).length})</summary>${table('', Object.entries(p.attributes))}</details>
   `;
   el.querySelector('.close')!.addEventListener('click', () => {

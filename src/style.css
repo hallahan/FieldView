@@ -21,7 +21,8 @@
   }
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: var(--bg); }
+[hidden] { display: none !important; }
+html, body { margin: 0; height: 100%; background: var(--bg); overscroll-behavior: none; }
 #app { display: flex; height: 100%; }
 #sidebar {
   width: 380px; flex-shrink: 0; overflow-y: auto; padding: 16px;
@@ -40,6 +41,10 @@ h3 { margin: 16px 0 6px; font-size: 13px; text-transform: uppercase; letter-spac
 }
 #dropzone:hover { border-color: var(--accent); }
 #dropzone span { color: var(--muted); font-size: 12px; }
+/* Once a file is open, shrink the picker to a single row. */
+.loaded #dropzone { flex-direction: row; justify-content: center; padding: 10px; border-style: solid; }
+.loaded #dropzone span, .loaded #sample-btn { display: none; }
+#point-detail { scroll-margin-top: 28px; }
 button { font: inherit; cursor: pointer; }
 button.link { background: none; border: none; color: var(--accent); padding: 0; align-self: flex-start; text-decoration: underline; }
 #status:empty { display: none; }
@@ -83,7 +88,39 @@ summary { cursor: pointer; color: var(--muted); }
   background: rgba(232, 89, 12, .15); border: 4px dashed var(--accent); font-size: 24px; color: var(--accent); pointer-events: none;
 }
 #drop-overlay[hidden] { display: none; }
+#sheet-handle { display: none; }
+.map-error { margin: 40px auto; max-width: 420px; padding: 16px; text-align: center; color: var(--muted); }
+
+/* Touch screens (phones, the controller): bigger targets, no zoom-on-focus. */
+@media (pointer: coarse) {
+  :root { font-size: 15px; }
+  input[type=search], #proj-input { font-size: 16px; padding: 10px; }
+  #proj-form button, #tabs button { padding: 12px; }
+  #points-table td { padding: 11px 6px; }
+  table.kv th, table.kv td { padding: 7px 6px; }
+  #basemap-toggle button { padding: 10px 14px; }
+  #dropzone { padding: 22px; }
+  .drop-hint { display: none; }
+  .detail-head .close { font-size: 28px; padding: 0 8px; }
+  .maplibregl-ctrl-group button { width: 40px; height: 40px; }
+}
+
+/* Small screens: map on top, panel below as a resizable sheet. The panel
+   sits beside the map rather than over it so it never hides points. */
 @media (max-width: 760px) {
-  #app { flex-direction: column-reverse; }
-  #sidebar { width: auto; height: 50%; border-right: none; border-top: 1px solid var(--border); }
+  #app { flex-direction: column; height: 100dvh; }
+  main { order: 1; min-height: 0; }
+  #sidebar {
+    order: 2; width: auto; height: 42dvh; flex-shrink: 0;
+    padding: 0 14px calc(14px + env(safe-area-inset-bottom));
+    border-right: none; border-top: 1px solid var(--border); transition: height .2s ease;
+  }
+  #sidebar.expanded { height: 82dvh; }
+  #sheet-handle {
+    display: flex; justify-content: center; position: sticky; top: 0; z-index: 2;
+    margin: 0 -14px; padding: 10px 0 6px; background: var(--bg); border: none; flex-shrink: 0;
+  }
+  #sheet-handle span { width: 44px; height: 5px; border-radius: 3px; background: var(--border); }
+  header .sub { display: none; }
+  #points-table th { top: 21px; }
 }
