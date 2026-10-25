@@ -7,6 +7,7 @@ import { ecefToGeodetic, JxlParseError, parseJxl } from './jxl';
 import { projectGrid } from './projection';
 
 const sample = readFileSync(resolve(__dirname, '../public/sample.jxl'), 'utf8');
+const access2026 = readFileSync(resolve(__dirname, 'fixtures/access-2026.jxl'), 'utf8');
 const withoutReductions = sample.replace(/<Reductions>[\s\S]*<\/Reductions>/, '');
 
 describe('parseJxl', () => {
@@ -84,7 +85,7 @@ describe('parseJxl', () => {
 describe('coordinate system', () => {
   it('detects NAD83(2011) California zone 3 and the epoch', () => {
     const { crs } = parseJxl(sample);
-    expect(crs.preset?.id).toBe('EPSG:6419');
+    expect(crs.projection?.id).toBe('EPSG:6419');
     expect(crs.epochs).toEqual(['2017.50']);
     expect(crs.distanceUnits).toBe('USSurveyFeet');
   });
@@ -115,6 +116,46 @@ describe('coordinate system', () => {
     projectGrid(doc.points, PRESETS[0].proj4);
     expect(gnss.coords.lat!).toBeCloseTo(lat!, 8);
     expect(gnss.coords.lon!).toBeCloseTo(lon!, 8);
+  });
+});
+
+describe('Trimble Access 2025/2026 exports', () => {
+  it('reads the epoch from the datum record, not from transformation records', () => {
+    const { crs } = parseJxl(access2026);
+    expect(crs.referenceFrame).toBe('NAD83(2011)');
+    expect(crs.epochs).toEqual(['2025.00']);
+  });
+
+  it('builds the projection from the projection record', () => {
+    const { crs } = parseJxl(access2026);
+    expect(crs.projection?.proj4).toMatch(/\+proj=lcc .*\+lat_1=38.433333333333 .*\+x_0=2000000 \+y_0=500000/);
+    expect(crs.projection?.label).toContain('California zone 3');
+  });
+
+  it('places grid-only points within a few centimetres of where GNSS put them', () => {
+    const doc = parseJxl(access2026);
+    const gnss = doc.points.find((p) => p.name === '1000')!;
+    const { lat, lon } = gnss.coords;
+    Object.assign(gnss.coords, { lat: undefined, lon: undefined, source: undefined });
+    projectGrid(doc.points, doc.crs.projection!.proj4);
+    // ~1e-6 degrees is about 10 cm; the file's grid includes a site calibration.
+    expect(Math.abs(gnss.coords.lat! - lat!)).toBeLessThan(1e-6);
+    expect(Math.abs(gnss.coords.lon! - lon!)).toBeLessThan(1e-6);
+  });
+
+  it('classifies keyed-in control, GNSS and offset points', () => {
+    const doc = parseJxl(access2026);
+    expect(doc.points.map((p) => [p.name, p.type])).toEqual([
+      ['CTRL1', 'Keyed in'],
+      ['1000', 'GNSS'],
+      ['1001', 'Computed'],
+    ]);
+  });
+
+  it('drops empty metadata fields and XML namespace attributes', () => {
+    const doc = parseJxl(access2026);
+    expect(doc.metadata.find((s) => s.title === 'Job properties')).toBeUndefined();
+    expect(doc.metadata.find((s) => s.title === 'Job')!.entries.map(([k]) => k)).not.toContain('xmlns:xsi');
   });
 });
 
