@@ -571,7 +571,7 @@ export function initJobs({ map, open, isSheet, setSheet }: Options) {
 
 /** GitHub's new-token page, pre-filled where GitHub supports it. */
 function tokenUrl() {
-  const q = new URLSearchParams({ name: 'FieldView', description: 'Upload JXL jobs from FieldView', contents: 'write' });
+  const q = new URLSearchParams({ name: 'OpenFieldView', description: 'Upload JXL jobs from OpenFieldView', contents: 'write' });
   return `https://github.com/settings/personal-access-tokens/new?${q}`;
 }
 

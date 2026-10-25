@@ -391,7 +391,8 @@ $<HTMLInputElement>('#align-toggle').addEventListener('change', (e) => {
 
 function readPref(key: string): string | null {
   try {
-    return localStorage.getItem(`fieldview.${key}`);
+    // Fall back to the key used before the rename to OpenFieldView.
+    return localStorage.getItem(`openfieldview.${key}`) ?? localStorage.getItem(`fieldview.${key}`);
   } catch {
     return null;
   }
@@ -399,7 +400,7 @@ function readPref(key: string): string | null {
 
 function writePref(key: string, value: string) {
   try {
-    localStorage.setItem(`fieldview.${key}`, value);
+    localStorage.setItem(`openfieldview.${key}`, value);
   } catch {
     // Private mode etc.; the setting just won't stick.
   }
@@ -501,7 +502,7 @@ function positionEntries(p: JxlPoint): [string, string][] {
   if (c.north !== undefined) out.push([`North (${unit.label})`, (c.north / unit.metres).toFixed(3)]);
   if (c.east !== undefined) out.push([`East (${unit.label})`, (c.east / unit.metres).toFixed(3)]);
   if (c.elevation !== undefined) out.push([`Elevation (${unit.label})`, (c.elevation / unit.metres).toFixed(3)]);
-  if (c.reduced) out.push(['Grid from', 'Reduced from the total station observation by FieldView']);
+  if (c.reduced) out.push(['Grid from', 'Reduced from the total station observation by OpenFieldView']);
   if (c.lat !== undefined) {
     out.push(['Latitude', c.lat.toFixed(9)], ['Longitude', c.lon!.toFixed(9)]);
     if (c.height !== undefined) out.push(['Ellipsoid height (m)', c.height.toFixed(3)]);

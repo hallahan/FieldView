@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Synthetic sample file for FieldView. Not real survey data. -->
+<!-- Synthetic sample file for OpenFieldView. Not real survey data. -->
 <JOBFile jobName="Walnut Creek Topo (sample)" version="6.00" product="Trimble Access" productVersion="2025.10" TimeStamp="2026-10-21T08:00:00">
   <Environment>
     <Configuration>
@@ -13,7 +13,7 @@
       <Reference>FV-0001</Reference>
       <Description>Mixed GNSS and total station topo (synthetic data)</Description>
       <Operator>Field Crew 1</Operator>
-      <Notes>Generated for demonstrating FieldView.</Notes>
+      <Notes>Generated for demonstrating OpenFieldView.</Notes>
     </JobPropertiesRecord>
     <CoordinateSystemRecord ID="00000002" TimeStamp="2026-10-21T08:00:00">
       <SystemName>US State Plane 1983</SystemName>

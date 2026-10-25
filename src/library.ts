@@ -45,7 +45,7 @@ export function emptyIndex(): JobIndex {
 export function parseIndex(text: string | undefined): JobIndex {
   if (!text) return emptyIndex();
   const parsed = JSON.parse(text) as JobIndex;
-  if (parsed.type !== 'FeatureCollection' || !Array.isArray(parsed.features)) throw new Error(`${INDEX_PATH} isn't a FieldView job index`);
+  if (parsed.type !== 'FeatureCollection' || !Array.isArray(parsed.features)) throw new Error(`${INDEX_PATH} isn't an OpenFieldView job index`);
   return parsed;
 }
 
@@ -131,7 +131,7 @@ export async function saveJob(gh: GitHub, text: string, doc: JxlDocument, fileNa
   const info = await gh.info();
   const name = jobName(doc, fileName);
   const path = jobPath(name);
-  if (info.empty) await gh.initialize(INDEX_PATH, serializeIndex(emptyIndex()), 'Start FieldView job index');
+  if (info.empty) await gh.initialize(INDEX_PATH, serializeIndex(emptyIndex()), 'Start OpenFieldView job index');
   const blobSha = await gitBlobSha(text);
   const size = new TextEncoder().encode(text).length;
   const commit = await gh.commitFiles(info.defaultBranch, async (read) => {

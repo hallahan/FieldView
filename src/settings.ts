@@ -7,7 +7,7 @@ export interface Settings {
   token?: string;
 }
 
-const KEY = 'fieldview.library';
+const KEY = 'openfieldview.library';
 
 export function loadSettings(): Settings {
   try {

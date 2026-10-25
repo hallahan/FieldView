@@ -211,7 +211,7 @@ function metadata(root: Element, points: JxlPoint[], crs: CrsInfo): MetadataSect
     if (n) summary.push([`${type} points`, String(n)]);
   }
   const reducedHere = points.filter((p) => p.coords.reduced).length;
-  if (reducedHere) summary.push(['Total station shots reduced by FieldView', String(reducedHere)]);
+  if (reducedHere) summary.push(['Total station shots reduced by OpenFieldView', String(reducedHere)]);
 
   const stamps = Array.from(root.querySelectorAll('[TimeStamp]'))
     .map((e) => e.getAttribute('TimeStamp')!)
