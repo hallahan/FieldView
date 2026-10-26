@@ -8,15 +8,16 @@ This is a one-time setup for whoever runs the site. It takes about 10 minutes. Y
 
 1. Go to <https://github.com/settings/apps/new>.
 2. **GitHub App name**: `OpenFieldView`. If GitHub says it's taken, use something like `OpenFieldView-hallahan`.
-3. **Homepage URL**: `https://openfieldview.org/`
+3. **Homepage URL**: `https://hallahan.github.io/OpenFieldView/`
 4. Under **Identifying and authorizing users**:
-   - **Callback URL**: `https://openfieldview.org/`
-   - Optionally click **Add Callback URL** and add `http://localhost:5173/` for local development.
+   - **Callback URL**: `https://hallahan.github.io/OpenFieldView/`
+   - Click **Add Callback URL** and add `https://hallahan.github.io/openfieldview/` (the same address in lower case, since GitHub matches it exactly).
+   - Optionally add a third, `http://localhost:5173/`, for local development.
    - Leave **Expire user authorization tokens** ticked.
    - Leave **Request user authorization (OAuth) during installation** unticked.
    - Leave **Enable Device Flow** unticked.
 5. Under **Post installation**:
-   - **Setup URL**: `https://openfieldview.org/`
+   - **Setup URL**: `https://hallahan.github.io/OpenFieldView/`
    - Tick **Redirect on update**.
 6. Under **Webhook**, untick **Active**.
 7. Under **Permissions → Repository permissions**, set **Contents** to **Read and write**. (**Metadata: Read-only** is added automatically. Nothing else is needed.)
@@ -39,7 +40,7 @@ This is a one-time setup for whoever runs the site. It takes about 10 minutes. Y
    | --- | --- | --- |
    | Text | `GITHUB_CLIENT_ID` | the Client ID from step 1.10 |
    | Secret | `GITHUB_CLIENT_SECRET` | the client secret from step 1.10 |
-   | Text | `ALLOWED_ORIGINS` | `https://openfieldview.org,http://localhost:5173` |
+   | Text | `ALLOWED_ORIGINS` | `https://hallahan.github.io,http://localhost:5173` |
 
    Click **Deploy** to save them.
 6. Copy the Worker's URL from the top of its page. It looks like `https://openfieldview-auth.<your-subdomain>.workers.dev`.
@@ -58,6 +59,10 @@ This is a one-time setup for whoever runs the site. It takes about 10 minutes. Y
 3. Re-deploy: open the **Actions** tab, pick **Deploy to GitHub Pages**, and click **Run workflow** on `main`. (Any push to `main` does the same.)
 
 Open the site, open a job, and tap **Sign in with GitHub to upload**.
+
+## If the site moves to its own domain
+
+Sign-in only works from the addresses GitHub and the Worker know about. After a move, change the GitHub App's **Homepage URL**, **Callback URL** and **Setup URL** to the new address (in the app's **General** settings), and add the new origin, e.g. `https://example.org`, to the Worker's `ALLOWED_ORIGINS`.
 
 ## How it works for people using the site
 

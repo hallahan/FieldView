@@ -9,7 +9,7 @@
 // Settings (Worker → Settings → Variables and Secrets):
 //   GITHUB_CLIENT_ID      the GitHub App's Client ID
 //   GITHUB_CLIENT_SECRET  a client secret generated on the GitHub App (type: Secret)
-//   ALLOWED_ORIGINS       comma-separated, e.g. https://openfieldview.org,http://localhost:5173
+//   ALLOWED_ORIGINS       comma-separated, e.g. https://hallahan.github.io,http://localhost:5173
 
 export default {
   async fetch(request, env) {
