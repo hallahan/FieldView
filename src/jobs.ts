@@ -31,11 +31,13 @@ interface Options {
   open: (text: string, name: string, size: number, origin: JobOrigin) => void;
   isSheet: () => boolean;
   setSheet: (expanded: boolean) => void;
+  /** Whether the viewer's linework toggle is on. */
+  showLines: () => boolean;
 }
 
 const PIN = '#1c7ed6';
 
-export function initJobs({ map, open, isSheet, setSheet }: Options) {
+export function initJobs({ map, open, isSheet, setSheet, showLines }: Options) {
   let settings: Settings = loadSettings();
   const fromLink = takeSetupFromUrl(settings);
   if (fromLink) {
@@ -553,8 +555,11 @@ export function initJobs({ map, open, isSheet, setSheet }: Options) {
     $('#view-viewer').hidden = view !== 'viewer';
     $('#view-jobs').hidden = view !== 'jobs';
     $('#sidebar').scrollTop = 0;
-    for (const id of ['points-circle', 'points-selected', 'points-label']) {
-      if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', view === 'viewer' ? 'visible' : 'none');
+    for (const layer of map.getStyle()?.layers ?? []) {
+      if (!/^(points|lines)-/.test(layer.id)) continue;
+      // Linework stays hidden if the viewer has turned it off.
+      const on = view === 'viewer' && (!layer.id.startsWith('lines-') || showLines());
+      map.setLayoutProperty(layer.id, 'visibility', on ? 'visible' : 'none');
     }
     show(view === 'jobs');
   }

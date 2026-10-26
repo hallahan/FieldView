@@ -4,8 +4,12 @@ import './style.css';
 import type { FeatureCollection, Point } from 'geojson';
 import { PRESETS } from './crs';
 import { currentEpoch, nad83ToWgs84 } from './datum';
+import { DEFAULT_CONTROLS, jobLibraryName, lookupFeature, parseFxl, type FeatureLibrary } from './fxl';
+import { deleteLibrary, getLibrary, listLibraries, saveLibrary } from './librarystore';
+import { initLineMap } from './linemap';
 import { parseJxl, type JxlDocument, type JxlPoint, type ObservationType } from './jxl';
 import { initJobs, type JobOrigin } from './jobs';
+import { buildLinework, parseCode, type Linework } from './linework';
 import { projectGrid, resolveProjection } from './projection';
 import { formatProp, latLonDms, type PropGroup, type Unit } from './properties';
 import { esc, formatBytes } from './util';
@@ -56,6 +60,12 @@ let showingDetail = false;
 let listed: number[] = [];
 let colorBy: 'code' | 'type' = 'code';
 let alignToImagery = readPref('alignToImagery') !== 'false';
+let showLines = readPref('showLines') !== 'false';
+let basemap = 'streets';
+let library: FeatureLibrary | undefined;
+/** Resolves once the stored libraries have been listed and the last one opened. */
+let libraryReady: Promise<void> = Promise.resolve();
+let linework: Linework | undefined;
 const mapEpoch = currentEpoch();
 
 // Shots can be 0.1 ft apart, so allow zooming well past the basemaps' own
@@ -90,13 +100,16 @@ const jobs = initJobs({
   },
   isSheet: () => isSheet(),
   setSheet: (expanded) => setSheet(expanded),
+  showLines: () => showLines,
 });
+const lineMap = initLineMap(map);
 
 // Layers are re-added whenever the basemap style is swapped.
 let styleReady = false;
 map.on('style.load', () => {
   styleReady = true;
   addPointLayers();
+  refreshLines();
   jobs.addLayers();
 });
 
@@ -118,6 +131,7 @@ function addPointLayers() {
   if (map.getSource('points')) return;
   // Hidden while the Jobs view shows its pins instead.
   const layout = { visibility: jobs.isActive() ? 'none' : 'visible' } as const;
+  lineMap.addLayers(showLines && !jobs.isActive());
   // Tile the points at full precision: the default (z18) quantises them to
   // about 2 cm, which smears shots that are a few hundredths apart.
   map.addSource('points', { type: 'geojson', data: toGeoJSON(), maxzoom: 24 });
@@ -127,11 +141,40 @@ function addPointLayers() {
     source: 'points',
     layout,
     paint: {
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 3, 16, 7, 21, 7, 24, 5],
+      // Vertices of linework are smaller, and points drawn with a library
+      // symbol shrink to a dot at its centre. All shrink a little at the
+      // deepest zooms so close shots stay apart.
+      'circle-radius': [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        4,
+        3,
+        16,
+        ['case', ['!=', ['get', 'symbol'], ''], 2.5, ['get', 'onLine'], 4.5, 7],
+        21,
+        ['case', ['!=', ['get', 'symbol'], ''], 2.5, ['get', 'onLine'], 4.5, 7],
+        24,
+        ['case', ['!=', ['get', 'symbol'], ''], 2, ['get', 'onLine'], 3.5, 5],
+      ],
       'circle-color': ['get', 'color'],
       'circle-stroke-color': '#fff',
       'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 21, 1.5, 24, 1],
       'circle-opacity': ['case', ['get', 'deleted'], 0.35, 1],
+    },
+  });
+  map.addLayer({
+    id: 'points-symbol',
+    type: 'symbol',
+    source: 'points',
+    minzoom: 15,
+    filter: ['!=', ['get', 'symbol'], ''],
+    layout: {
+      ...layout,
+      'icon-image': ['get', 'symbol'],
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 15, 0.6, 19, 1, 22, 1.4],
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
     },
   });
   map.addLayer({
@@ -164,6 +207,15 @@ function addPointLayers() {
   });
 }
 
+function rebuildLinework() {
+  linework = doc ? buildLinework(doc.points, library) : undefined;
+  refreshLines();
+}
+
+function refreshLines() {
+  lineMap.update(linework?.lines ?? { type: 'FeatureCollection', features: [] }, library, codeColorFn());
+}
+
 // Pick the nearest point within a finger-sized box rather than requiring an
 // exact hit on a small circle.
 const TAP_TOLERANCE = 14;
@@ -189,6 +241,8 @@ map.on('mouseleave', 'points-circle', () => (map.getCanvas().style.cursor = ''))
 
 function toGeoJSON(): FeatureCollection {
   const color = colorFn();
+  const codeColor = codeColorFn();
+  const symbol = (p: JxlPoint) => lineMap.symbolFor(library, p.code.split(/\s+/)[0], codeColor);
   return {
     type: 'FeatureCollection',
     features: (doc?.points ?? [])
@@ -196,21 +250,42 @@ function toGeoJSON(): FeatureCollection {
       .map((p) => ({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [p.coords.mapLon!, p.coords.mapLat!] },
-        properties: { index: p.index, name: p.name, code: p.code, deleted: p.deleted, color: color(p) },
+        properties: {
+          index: p.index,
+          name: p.name,
+          code: p.code,
+          deleted: p.deleted,
+          color: color(p),
+          symbol: symbol(p),
+          onLine: showLines && !!linework?.onLines.has(p.index),
+        },
       })),
   };
 }
 
 function colorFn(): (p: JxlPoint) => string {
   if (colorBy === 'type') return (p) => TYPE_COLORS[p.type];
-  // Colour by feature code: the first word, so "PCC" and "PCC EC" match.
-  const key = (p: JxlPoint) => p.code.split(/\s+/)[0];
+  const color = codeColorFn();
+  return (p) => color(p.code.split(/\s+/)[0]);
+}
+
+/**
+ * Colour for a feature code: the library's colour if it has one, otherwise
+ * one of the palette colours, the most common codes getting distinct ones.
+ */
+function codeColorFn(): (code: string) => string {
+  // Count every feature code on each point, so "PCC" and "PCC EC" match.
   const counts = new Map<string, number>();
-  for (const p of doc?.points ?? []) counts.set(key(p), (counts.get(key(p)) ?? 0) + 1);
+  for (const p of doc?.points ?? []) {
+    for (const t of parseCode(p.code, library)) counts.set(t.code, (counts.get(t.code) ?? 0) + 1);
+  }
   const ranked = [...counts.keys()].sort((a, b) => counts.get(b)! - counts.get(a)!);
   // The most common codes get distinct colours; the rest share grey.
   const byCode = new Map(ranked.map((code, i) => [code, PALETTE[Math.min(i, PALETTE.length - 1)]]));
-  return (p) => byCode.get(key(p))!;
+  return (code) => {
+    const fromLibrary = lookupFeature(library, code)?.style.color;
+    return fromLibrary ? lineMap.visibleColor(fromLibrary) : (byCode.get(code) ?? PALETTE[PALETTE.length - 1]);
+  };
 }
 
 document.querySelectorAll<HTMLButtonElement>('#color-by button').forEach((b) =>
@@ -219,6 +294,7 @@ document.querySelectorAll<HTMLButtonElement>('#color-by button').forEach((b) =>
     document.querySelectorAll('#color-by button').forEach((x) => x.classList.toggle('active', x === b));
     renderTable();
     refreshMap(false);
+    refreshLines();
   }),
 );
 
@@ -238,7 +314,16 @@ function refreshMap(fit: boolean) {
 // ---------------------------------------------------------------- loading
 
 async function loadFile(file: File) {
-  load(await file.text(), file.name, file.size);
+  const text = await file.text();
+  if (isLibraryFile(file.name, text)) addLibrary(text, file.name);
+  else load(text, file.name, file.size);
+}
+
+function isLibraryFile(name: string, text: string) {
+  if (/\.fxl$/i.test(name)) return true;
+  if (/\.jxl$/i.test(name)) return false;
+  // Unknown extension: anything that isn't a JobXML job is tried as a library.
+  return !/<JOBFile[\s>]/.test(text.slice(0, 4096));
 }
 
 let loaded: { text: string; name: string; size: number; origin?: JobOrigin } | undefined;
@@ -294,6 +379,7 @@ function load(text: string, name: string, size: number, gridDef?: { input: strin
   );
   $('#align-row').hidden = !doc.crs.nad83;
   alignPoints();
+  linework = buildLinework(doc.points, library);
   const remaining = doc.points.filter((p) => p.coords.lat === undefined && p.coords.north !== undefined).length;
   $('#projection').hidden = remaining === 0;
   $('#grid-count').textContent = String(doc.gridOnlyCount);
@@ -302,10 +388,13 @@ function load(text: string, name: string, size: number, gridDef?: { input: strin
   renderTable();
   renderMetadata();
   renderDetail();
+  renderLibrary();
   setSheet(false);
   if (map.isStyleLoaded()) addPointLayers();
   setSelectedFilter();
   refreshMap(true);
+  refreshLines();
+  libraryReady.then(() => matchJobLibrary(text));
   if (projectionError) setStatus(projectionError, true);
 }
 
@@ -346,6 +435,125 @@ window.addEventListener('drop', (e) => {
   const file = e.dataTransfer?.files[0];
   if (file) loadFile(file);
 });
+
+// ---------------------------------------------------------------- feature library
+
+// Libraries are kept on the device; the one in use is remembered by name.
+let storedLibraries: string[] = [];
+let libraryNote = '';
+
+/** Use a library (or none) for linework and colours. */
+function useLibrary(lib: FeatureLibrary | undefined, note = '') {
+  library = lib;
+  libraryNote = note;
+  writePref('library', lib?.name ?? '');
+  if (doc) {
+    rebuildLinework();
+    refreshMap(false);
+    renderTable();
+    renderDetail();
+    renderMetadata();
+  }
+  renderLibrary();
+}
+
+async function activateLibrary(name: string, note = ''): Promise<boolean> {
+  const stored = await getLibrary(name);
+  if (!stored) return false;
+  try {
+    useLibrary(parseFxl(stored.text, name), note);
+    return true;
+  } catch (e) {
+    useLibrary(undefined, `${name} couldn't be read: ${(e as Error).message}`);
+    return false;
+  }
+}
+
+/** Add a library from a file, keep it on the device, and use it. */
+async function addLibrary(text: string, fileName: string) {
+  let lib: FeatureLibrary;
+  try {
+    lib = parseFxl(text, fileName);
+  } catch (e) {
+    setStatus(`${esc(fileName)}: ${esc((e as Error).message)}`, true);
+    return;
+  }
+  const kept = await saveLibrary(lib.name, text);
+  storedLibraries = await listLibraries();
+  useLibrary(lib, kept ? '' : "This browser won't keep it, so add it again next time.");
+}
+
+/** Switch to the library a job was coded with, if it's on the device. */
+async function matchJobLibrary(jxl: string) {
+  const wanted = jobLibraryName(jxl);
+  if (!wanted || library?.name.toLowerCase() === wanted.toLowerCase()) return;
+  const stored = storedLibraries.find((n) => n.toLowerCase() === wanted.toLowerCase());
+  if (stored) await activateLibrary(stored, `Switched to ${stored}, the library this job was coded with.`);
+  else {
+    libraryNote = `This job was coded with ${wanted}.fxl. Add it to draw the job's line styles.`;
+    renderLibrary();
+  }
+}
+
+function renderLibrary() {
+  const select = $<HTMLSelectElement>('#fxl-select');
+  const names = new Set(storedLibraries);
+  if (library) names.add(library.name);
+  select.innerHTML =
+    `<option value="">None (default control codes)</option>` +
+    [...names].sort().map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  select.value = library?.name ?? '';
+  const status = $('#fxl-status');
+  const parts: string[] = [];
+  if (library) {
+    const n = (kind: string) => [...library!.features.values()].filter((f) => f.kind === kind).length;
+    const counts = [`${n('line')} line`, `${n('polygon')} polygon`, `${n('point')} point`].filter((c) => !c.startsWith('0 '));
+    parts.push(`${library.features.size} feature codes (${counts.join(', ')}).`);
+  } else {
+    parts.push(`Lines are joined using the Caltrans control codes ${DEFAULT_CONTROLS.map((c) => c.code).join(', ')}.`);
+  }
+  if (libraryNote) parts.push(`<strong>${esc(libraryNote)}</strong>`);
+  status.innerHTML = parts.join('<br>');
+  $('#fxl-clear').hidden = !library || !storedLibraries.includes(library.name);
+  const lines = linework?.lines.features.length ?? 0;
+  $('#lines-count').textContent = doc ? `(${lines} ${lines === 1 ? 'figure' : 'figures'})` : '';
+}
+
+$<HTMLSelectElement>('#fxl-select').addEventListener('change', (e) => {
+  const name = (e.target as HTMLSelectElement).value;
+  if (name) activateLibrary(name);
+  else useLibrary(undefined);
+});
+
+$<HTMLInputElement>('#fxl-input').addEventListener('change', async (e) => {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (file) addLibrary(await file.text(), file.name);
+  input.value = '';
+});
+
+$('#fxl-clear').addEventListener('click', async () => {
+  if (!library) return;
+  await deleteLibrary(library.name);
+  storedLibraries = await listLibraries();
+  useLibrary(undefined);
+});
+
+$<HTMLInputElement>('#lines-toggle').checked = showLines;
+$<HTMLInputElement>('#lines-toggle').addEventListener('change', (e) => {
+  showLines = (e.target as HTMLInputElement).checked;
+  writePref('showLines', String(showLines));
+  lineMap.setVisible(showLines && !jobs.isActive());
+  refreshMap(false);
+});
+
+renderLibrary();
+libraryReady = (async () => {
+  storedLibraries = await listLibraries();
+  const last = readPref('library');
+  if (last && storedLibraries.includes(last)) await activateLibrary(last);
+  else renderLibrary();
+})();
 
 $('#proj-presets').innerHTML = PRESETS.map((p) => `<option value="${p.id}">${esc(p.label)}</option>`).join('');
 
@@ -401,6 +609,7 @@ $<HTMLInputElement>('#align-toggle').addEventListener('change', (e) => {
   writePref('alignToImagery', String(alignToImagery));
   alignPoints();
   refreshMap(false);
+  rebuildLinework();
   renderDetail();
 });
 
@@ -596,7 +805,21 @@ function jobUnit(): Unit {
 
 function renderMetadata() {
   if (!doc) return;
-  $('#tab-metadata').innerHTML = doc.metadata.map((s) => table(s.title, s.entries)).join('');
+  const lines: [string, string][] = [
+    ['Feature library', library ? library.name : 'None (default control codes)'],
+    ['Figures drawn', String(linework?.lines.features.length ?? 0)],
+    [
+      'Control codes',
+      (library?.controls.size ? [...library.controls.values()] : DEFAULT_CONTROLS).map((c) => `${c.code} ${c.description}`).join(', '),
+    ],
+  ];
+  if (linework?.undefinedCodes.length) {
+    lines.push([library ? 'Line codes not in the library' : 'Line codes', linework.undefinedCodes.join(', ')]);
+  }
+  if (library?.unknownControls.size) {
+    lines.push(['Control codes not supported yet', [...library.unknownControls].map(([c, a]) => `${c} (${a})`).join(', ')]);
+  }
+  $('#tab-metadata').innerHTML = [...doc.metadata, { title: 'Linework', entries: lines }].map((s) => table(s.title, s.entries)).join('');
 }
 
 function table(title: string, entries: [string, string][]) {
@@ -612,7 +835,9 @@ document.querySelectorAll<HTMLButtonElement>('#basemap-toggle button').forEach((
   b.addEventListener('click', () => {
     document.querySelectorAll('#basemap-toggle button').forEach((x) => x.classList.toggle('active', x === b));
     styleReady = false;
-    map.setStyle(BASEMAPS[b.dataset.basemap!]);
+    basemap = b.dataset.basemap!;
+    lineMap.setBasemap(basemap);
+    map.setStyle(BASEMAPS[basemap]);
   }),
 );
 

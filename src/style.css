@@ -65,6 +65,15 @@ h3 { margin: 16px 0 6px; font: 600 12px var(--font-sans); text-transform: upperc
 button { font: inherit; cursor: pointer; }
 button.link { background: none; border: none; color: var(--link); padding: 0; align-self: flex-start; text-decoration: underline; }
 #status:empty { display: none; }
+#fxl-row { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; }
+#fxl-status { font-size: 14px; color: var(--muted); }
+#fxl-status:empty { display: none; }
+.fxl-head { display: flex; gap: 8px; align-items: center; }
+.fxl-head label { font: 600 12px var(--font-sans); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); flex-shrink: 0; }
+.fxl-head select { flex: 1; max-width: none; min-width: 0; }
+.fxl-actions { display: flex; gap: 14px; flex-wrap: wrap; }
+.fxl-actions label.link { color: var(--link); text-decoration: underline; cursor: pointer; font-family: var(--font-sans); }
+.fxl-actions button.link { font-family: var(--font-sans); }
 #status { padding: 8px 10px; background: var(--panel); border-radius: 6px; }
 #status.error { background: #ffe3e3; color: #b42318; }
 .check { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
@@ -198,6 +207,7 @@ a { color: var(--accent); }
   table.kv th, table.kv td { padding: 7px 6px; }
   #basemap-toggle button { padding: 10px 14px; }
   #dropzone { padding: 22px; }
+  .fxl-actions label.link, .fxl-actions button.link { padding: 6px 0; }
   .drop-hint { display: none; }
   .detail-nav { font-size: 15px; }
   .detail-nav button { padding: 10px 16px; }
