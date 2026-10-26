@@ -53,6 +53,11 @@ let colorBy: 'code' | 'type' = 'code';
 let alignToImagery = readPref('alignToImagery') !== 'false';
 const mapEpoch = currentEpoch();
 
+// Shots can be 0.1 ft apart, so allow zooming well past the basemaps' own
+// tiles (they overzoom). MapLibre has no tile coordinates past z25; there
+// 0.1 ft in California is about 16 px.
+const MAX_ZOOM = 25;
+
 let map: maplibregl.Map;
 try {
   map = new maplibregl.Map({
@@ -60,6 +65,7 @@ try {
     style: BASEMAPS.streets,
     center: [0, 20],
     zoom: 1.5,
+    maxZoom: MAX_ZOOM,
     attributionControl: { compact: true },
   });
 } catch (e) {
@@ -68,6 +74,7 @@ try {
 }
 map.addControl(new maplibregl.NavigationControl(), 'top-right');
 map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: true }), 'top-right');
+map.addControl(new maplibregl.ScaleControl({ unit: 'imperial' }), 'bottom-right');
 map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
 
 const jobs = initJobs({
@@ -106,17 +113,19 @@ function addPointLayers() {
   if (map.getSource('points')) return;
   // Hidden while the Jobs view shows its pins instead.
   const layout = { visibility: jobs.isActive() ? 'none' : 'visible' } as const;
-  map.addSource('points', { type: 'geojson', data: toGeoJSON() });
+  // Tile the points at full precision: the default (z18) quantises them to
+  // about 2 cm, which smears shots that are a few hundredths apart.
+  map.addSource('points', { type: 'geojson', data: toGeoJSON(), maxzoom: 24 });
   map.addLayer({
     id: 'points-circle',
     type: 'circle',
     source: 'points',
     layout,
     paint: {
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 3, 16, 7],
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 3, 16, 7, 21, 7, 24, 5],
       'circle-color': ['get', 'color'],
       'circle-stroke-color': '#fff',
-      'circle-stroke-width': 1.5,
+      'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 21, 1.5, 24, 1],
       'circle-opacity': ['case', ['get', 'deleted'], 0.35, 1],
     },
   });
@@ -127,7 +136,7 @@ function addPointLayers() {
     layout,
     filter: ['==', ['get', 'index'], selected ?? -1],
     paint: {
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 7, 16, 12],
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 7, 16, 12, 21, 12, 24, 9],
       'circle-color': 'rgba(0,0,0,0)',
       'circle-stroke-color': '#ffd43b',
       'circle-stroke-width': 3,
