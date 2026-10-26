@@ -5,8 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GitHub, gitBlobSha, parseRepo, toBase64 } from './github';
 import { parseJxl } from './jxl';
 import { footprint, INDEX_PATH, jobPath, parseIndex, saveJob } from './library';
+import { applyPlacement, initialPlacement } from './placement';
 
 const sample = readFileSync(resolve(__dirname, '../public/sample.jxl'), 'utf8');
+const local = readFileSync(resolve(__dirname, '../public/sample-local.jxl'), 'utf8');
 
 describe('helpers', () => {
   it('computes the same blob id as git', async () => {
@@ -172,5 +174,24 @@ describe('saveJob', () => {
     await saveJob(gh(), other, parseJxl(other), 'other.jxl');
     const names = parseIndex(fake.files()[INDEX_PATH]).features.map((f) => f.properties.jobName);
     expect(names.sort()).toEqual(['Other job', 'Walnut Creek Topo (sample)', 'x']);
+  });
+
+  it('keeps where a job in assumed coordinates was placed, and saves a new placement on its own', async () => {
+    const placed = parseJxl(local);
+    placed.placement = initialPlacement(placed.points, 37.9, -122.06, '2026-10-26T12:00:00Z');
+    applyPlacement(placed.points, placed.placement!);
+    await saveJob(gh(), local, placed, 'sample-local.jxl', '2026-10-26T12:00:00Z');
+    let f = parseIndex(fake.files()[INDEX_PATH]).features[0];
+    expect(f.properties.placement).toEqual(placed.placement);
+    // The job's pin on the Jobs map is where it was placed.
+    expect(f.geometry?.coordinates[0]).toBeCloseTo(-122.06, 3);
+    expect(f.geometry?.coordinates[1]).toBeCloseTo(37.9, 3);
+    expect((await saveJob(gh(), local, placed, 'sample-local.jxl')).status).toBe('unchanged');
+
+    placed.placement = { ...placed.placement!, rotation: 15, updated: '2026-10-26T13:00:00Z' };
+    expect((await saveJob(gh(), local, placed, 'sample-local.jxl')).status).toBe('saved');
+    f = parseIndex(fake.files()[INDEX_PATH]).features[0];
+    expect(f.properties.placement?.rotation).toBe(15);
+    expect(fake.commits.get(fake.head!)!.message).toBe('Place Assumed Coordinates (sample) on the map');
   });
 });

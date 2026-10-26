@@ -14,6 +14,20 @@ import { lineGroups, linesAtPoint } from './lineprops';
 import { projectGrid, resolveProjection } from './projection';
 import { featureGroups } from './featureprops';
 import { groundDelta, IMAGERY_TILES, initImagery, isZero, type ImageryOffset } from './imagery';
+import {
+  applyPlacement,
+  bearingFromPin,
+  canPlace,
+  formatDms,
+  initialPlacement,
+  isPlacement,
+  newer,
+  normalizeAngle,
+  parseAngle,
+  removePlacement,
+  repin,
+  type Placement,
+} from './placement';
 import { formatProp, latLonDms, type Prop, type PropGroup, type Unit } from './properties';
 import { esc, formatBytes } from './util';
 
@@ -259,6 +273,7 @@ const TAP_TOLERANCE = 14;
 const POINT_HIT = window.matchMedia('(pointer: coarse)').matches ? 10 : 7;
 map.on('click', (e) => {
   if (aligning) return;
+  if (placing) return pivotAt(e.point);
   if (jobs.handleClick(e, TAP_TOLERANCE)) return;
   const point = nearestPoint(e.point);
   const line = point && point.d <= POINT_HIT ? undefined : nearestLine(e.point);
@@ -268,8 +283,8 @@ map.on('click', (e) => {
 // Layers the cursor shows as tappable; the highlight is under the line itself.
 const TAPPABLE_LINES = LINE_LAYERS.filter((id) => id !== 'lines-selected');
 for (const id of ['points-circle', ...TAPPABLE_LINES]) {
-  map.on('mouseenter', id, () => !aligning && (map.getCanvas().style.cursor = 'pointer'));
-  map.on('mouseleave', id, () => !aligning && (map.getCanvas().style.cursor = ''));
+  map.on('mouseenter', id, () => !aligning && !placing && (map.getCanvas().style.cursor = 'pointer'));
+  map.on('mouseleave', id, () => !aligning && !placing && (map.getCanvas().style.cursor = ''));
 }
 
 function tapBox(at: maplibregl.Point): [[number, number], [number, number]] {
@@ -392,7 +407,11 @@ function refreshMap(fit: boolean) {
   if (!framed.length) return;
   const bounds = new maplibregl.LngLatBounds();
   for (const p of framed) bounds.extend([p.coords.mapLon!, p.coords.mapLat!]);
-  map.fitBounds(bounds, { padding: isSheet() ? 30 : 60, maxZoom: 18, duration: 600 });
+  const pad = isSheet() ? 30 : 60;
+  // Keep the job clear of the placing bar over the top of the map.
+  const bar = $('#place-bar');
+  const top = bar.hidden ? pad : bar.getBoundingClientRect().bottom - map.getContainer().getBoundingClientRect().top + 50;
+  map.fitBounds(bounds, { padding: { top, bottom: pad, left: pad, right: pad }, maxZoom: 18, duration: 600 });
 }
 
 // ---------------------------------------------------------------- loading
@@ -439,13 +458,21 @@ function load(text: string, name: string, size: number, gridDef?: { input: strin
       ...(origin ? [['From', `${origin.repo}${origin.version ? ` at ${origin.version.slice(0, 7)}` : ''}`] as [string, string]] : []),
     ],
   });
+  // A job in assumed coordinates goes where it was placed by hand, unless a
+  // coordinate system has just been chosen for it.
+  setPlacing(false);
+  placement = gridDef || !canPlace(doc.points) ? undefined : newer(origin?.placement, readPlacement());
+  if (placement) {
+    doc.placement = placement;
+    applyPlacement(doc.points, placement);
+  }
   // Place grid-only points straight away when the job's projection is known.
   let projected = 0;
   let projectionError = '';
   const detected = doc.crs.projection;
   const projection = gridDef ?? (detected && { input: detected.id ?? '', proj4: detected.proj4 });
   const projectionLabel = gridDef ? gridDef.input : detected?.label;
-  if (doc.gridOnlyCount && projection) {
+  if (doc.gridOnlyCount && projection && !placement) {
     try {
       projected = projectGrid(doc.points, projection.proj4, doc.crs.adjustment);
       $<HTMLInputElement>('#proj-input').value = projection.input;
@@ -454,22 +481,13 @@ function load(text: string, name: string, size: number, gridDef?: { input: strin
       if (gridDef) projectionError = `Couldn't use that coordinate system: ${esc((err as Error).message)}`;
     }
   }
-  const mapped = doc.points.filter((p) => p.coords.lat !== undefined).length;
-  const types = (['GNSS', 'Total station', 'Computed', 'Keyed in'] as ObservationType[])
-    .map((t) => [t, doc!.points.filter((p) => p.type === t).length] as const)
-    .filter(([, n]) => n)
-    .map(([t, n]) => `${n} ${t === 'GNSS' ? t : t.toLowerCase()}`);
-  setStatus(
-    `<strong>${esc(name)}</strong>: ${doc.points.length} points${types.length ? ` (${types.join(', ')})` : ''}, ${mapped} on the map.` +
-      (projected ? `<br><span class="muted">${projected} grid points placed using ${esc(projectionLabel!)}.</span>` : ''),
-  );
+  statusNote = { name, projected: projected ? `${projected} grid points placed using ${projectionLabel}.` : '' };
+  renderLoadStatus();
   $('#align-row').hidden = !doc.crs.nad83;
   alignPoints();
   setImageryOffset(readOffset(), false);
   linework = buildLinework(doc.points, library, jobUnit().metres);
-  const remaining = doc.points.filter((p) => p.coords.lat === undefined && p.coords.north !== undefined).length;
-  $('#projection').hidden = remaining === 0;
-  $('#grid-count').textContent = String(doc.gridOnlyCount);
+  renderProjection();
   $('#tabs').hidden = false;
   showTab('points');
   renderTable();
@@ -483,6 +501,34 @@ function load(text: string, name: string, size: number, gridDef?: { input: strin
   refreshLines();
   libraryReady.then(() => matchJobLibrary(text));
   if (projectionError) setStatus(projectionError, true);
+}
+
+/** Offer a coordinate system, or placing by hand, for points that aren't on the map. */
+function renderProjection() {
+  if (!doc) return;
+  const remaining = doc.points.filter((p) => p.coords.lat === undefined && p.coords.north !== undefined).length;
+  $('#projection').hidden = remaining === 0;
+  $('#grid-count').textContent = String(remaining);
+  $('#place-offer').hidden = !canPlace(doc.points);
+  renderPlace();
+}
+
+/** The open file and how its points got on the map, for the status line. */
+let statusNote = { name: '', projected: '' };
+
+function renderLoadStatus() {
+  if (!doc) return;
+  const mapped = doc.points.filter((p) => p.coords.lat !== undefined).length;
+  const placed = doc.points.filter((p) => p.coords.source === 'Placed').length;
+  const types = (['GNSS', 'Total station', 'Computed', 'Keyed in'] as ObservationType[])
+    .map((t) => [t, doc!.points.filter((p) => p.type === t).length] as const)
+    .filter(([, n]) => n)
+    .map(([t, n]) => `${n} ${t === 'GNSS' ? t : t.toLowerCase()}`);
+  setStatus(
+    `<strong>${esc(statusNote.name)}</strong>: ${doc.points.length} points${types.length ? ` (${types.join(', ')})` : ''}, ${mapped} on the map.` +
+      (statusNote.projected ? `<br><span class="muted">${esc(statusNote.projected)}</span>` : '') +
+      (placed ? `<br><span class="muted">${placed} points in assumed coordinates, placed by hand.</span>` : ''),
+  );
 }
 
 function setStatus(html: string, error = false) {
@@ -503,6 +549,11 @@ $('#sample-btn').addEventListener('click', async () => {
   const res = await fetch(`${import.meta.env.BASE_URL}sample.jxl`);
   const text = await res.text();
   load(text, 'sample.jxl', text.length);
+});
+$('#sample-local-btn').addEventListener('click', async () => {
+  const res = await fetch(`${import.meta.env.BASE_URL}sample-local.jxl`);
+  const text = await res.text();
+  load(text, 'sample-local.jxl', text.length);
 });
 
 let dragDepth = 0;
@@ -670,7 +721,8 @@ function alignPoints() {
   for (const p of doc.points) {
     const c = p.coords;
     if (c.lat === undefined || c.lon === undefined) continue;
-    if (shift) {
+    // Placed by eye on the imagery, so already where it should be drawn.
+    if (shift && c.source !== 'Placed') {
       const w = nad83ToWgs84(c.lat, c.lon, c.height ?? 0, mapEpoch, doc.crs.datumChain);
       c.mapLat = w.lat;
       c.mapLon = w.lon;
@@ -813,6 +865,7 @@ function goBack() {
 
 document.addEventListener('keydown', (e) => {
   if (aligning && alignKey(e)) return;
+  if (placing && placeKey(e)) return;
   if (!showingDetail || (e.target as HTMLElement).closest('input, select, textarea')) return;
   if (e.key === 'Escape') goBack();
   else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') step(1);
@@ -976,7 +1029,8 @@ function coordinateGroup(p: JxlPoint): PropGroup {
     props.push({ label: 'Latitude', value: `${esc(latLonDms(c.lat, 'N', 'S'))}${deg(c.lat)}`, kind: 'html' });
     props.push({ label: 'Longitude', value: `${esc(latLonDms(c.lon!, 'E', 'W'))}${deg(c.lon!)}`, kind: 'html' });
     length('Height (ellipsoid)', c.height);
-    props.push({ label: 'Lat/long from', value: c.source === 'Grid' ? 'Grid coordinates' : c.source! });
+    const from = { Grid: 'Grid coordinates', Placed: 'Placed by hand on the map (assumed coordinates)' } as Record<string, string>;
+    props.push({ label: 'Lat/long from', value: from[c.source!] ?? c.source! });
     if (c.mapLat !== undefined && (c.mapLat !== c.lat || c.mapLon !== c.lon)) {
       props.push({ label: `Map position (ITRF2020 ≈ WGS84, ${mapEpoch.toFixed(2)})`, value: `${c.mapLat.toFixed(9)}, ${c.mapLon!.toFixed(9)}` });
     }
@@ -1007,7 +1061,9 @@ function renderMetadata() {
   if (library?.unknownControls.size) {
     lines.push(['Control codes not supported yet', [...library.unknownControls].map(([c, a]) => `${c} (${a})`).join(', ')]);
   }
-  $('#tab-metadata').innerHTML = [...doc.metadata, { title: 'Linework', entries: lines }].map((s) => table(s.title, s.entries)).join('');
+  const sections = [...doc.metadata, { title: 'Linework', entries: lines }];
+  if (placement) sections.push({ title: 'Placed on the map', entries: placementEntries(placement) });
+  $('#tab-metadata').innerHTML = sections.map((s) => table(s.title, s.entries)).join('');
 }
 
 function table(title: string, entries: [string, string][]) {
@@ -1028,6 +1084,7 @@ document.querySelectorAll<HTMLButtonElement>('#basemap-toggle button').forEach((
     map.setStyle(BASEMAPS[basemap]);
     if (basemap !== 'satellite') setAligning(false);
     renderAlign();
+    renderPlace();
   }),
 );
 
@@ -1040,10 +1097,13 @@ let aligning = false;
 let dragFrom: { pointer: number; at: maplibregl.LngLat; offset: ImageryOffset } | undefined;
 const pointers = new Set<number>();
 
-/** The job's own name, so every version of it opened from a repo shares an offset. */
+/** The job's own name, so every version of it opened from a repo shares its settings. */
+function jobKey() {
+  return doc?.job.jobName || (loaded?.name ?? '').replace(/(_[0-9a-f]{7})?\.(jxl|rw5)$/i, '');
+}
+
 function offsetKey() {
-  const name = doc?.job.jobName || (loaded?.name ?? '').replace(/(_[0-9a-f]{7})?\.jxl$/i, '');
-  return `imageryOffset.${name}`;
+  return `imageryOffset.${jobKey()}`;
 }
 
 function readOffset(): ImageryOffset | undefined {
@@ -1063,9 +1123,22 @@ function setImageryOffset(o: ImageryOffset | undefined, save: boolean) {
 }
 
 function setAligning(on: boolean) {
+  if (on) setPlacing(false);
   aligning = on;
   dragFrom = undefined;
-  // One finger moves the imagery; pinching still zooms, without rotating.
+  syncMapLock();
+  renderAlign();
+}
+
+let mapLocked = false;
+/**
+ * While the imagery or a job is being moved, one finger drags it rather than
+ * the map; pinching still zooms, without rotating.
+ */
+function syncMapLock() {
+  const on = aligning || (placing && !!placement);
+  if (on === mapLocked) return;
+  mapLocked = on;
   for (const h of [map.dragPan, map.dragRotate, map.keyboard, map.touchPitch]) {
     if (on) h.disable();
     else h.enable();
@@ -1075,7 +1148,6 @@ function setAligning(on: boolean) {
   map.getCanvas().style.cursor = on ? 'move' : '';
   // Without this the browser takes a one-finger drag as a page scroll.
   map.getCanvasContainer().classList.toggle('aligning', on);
-  renderAlign();
 }
 
 function renderAlign() {
@@ -1150,3 +1222,248 @@ function alignKey(e: KeyboardEvent): boolean {
   return true;
 }
 
+
+// ---------------------------------------------------------------- placing a job
+
+// A job in assumed coordinates (10000, 10000 and an assumed north) has no
+// place on the earth until someone puts it there: drag it into position and
+// turn it about a pin until it sits on the imagery. The placement is kept on
+// this device for each job, and goes into the repo's index on upload.
+let placement: Placement | undefined;
+let placing = false;
+let placeDrag: { pointer: number; turn: boolean; at: maplibregl.LngLat; start: Placement; moved: boolean } | undefined;
+const placePointers = new Set<number>();
+let pin: maplibregl.Marker | undefined;
+let redrawQueued = false;
+
+function placementKey() {
+  return `placement.${jobKey()}`;
+}
+
+function readPlacement(): Placement | undefined {
+  try {
+    const o = JSON.parse(readPref(placementKey()) || 'null');
+    return isPlacement(o) ? o : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Move the job; `save` when a change is finished, rather than mid-drag. */
+function setPlacement(pl: Placement | undefined, save: boolean) {
+  if (!doc) return;
+  placement = pl && { ...pl, rotation: normalizeAngle(pl.rotation), updated: new Date().toISOString() };
+  doc.placement = placement;
+  if (placement) applyPlacement(doc.points, placement);
+  else removePlacement(doc.points);
+  if (save) {
+    writePref(placementKey(), placement ? JSON.stringify(placement) : '');
+    // Starting over shouldn't bring back the placement the job was opened with.
+    if (!placement && loaded?.origin) loaded.origin = { ...loaded.origin, placement: undefined };
+    redrawPlaced();
+    renderLoadStatus();
+    renderProjection();
+    renderLibrary();
+    renderTable();
+    renderDetail();
+    renderMetadata();
+  } else if (!redrawQueued) {
+    // Dragging: redraw once a frame at most, so the controller keeps up.
+    redrawQueued = true;
+    requestAnimationFrame(() => {
+      redrawQueued = false;
+      redrawPlaced();
+    });
+  }
+}
+
+function redrawPlaced() {
+  alignPoints();
+  refreshMap(false);
+  rebuildLinework();
+  updatePin();
+  renderPlaceFields();
+}
+
+function setPlacing(on: boolean) {
+  if (on && !doc) return;
+  if (on) setAligning(false);
+  placing = on;
+  placeDrag = undefined;
+  renderPlace();
+}
+
+/** The point the job turns about, when the pin is on one. */
+function pivotPoint(): JxlPoint | undefined {
+  if (!doc || !placement) return undefined;
+  const { north, east } = placement;
+  return doc.points.find((p) => !p.deleted && p.coords.north === north && p.coords.east === east);
+}
+
+function renderPlace() {
+  const button = $<HTMLButtonElement>('#place-job');
+  button.hidden = !doc || !canPlace(doc.points);
+  button.classList.toggle('active', placing);
+  button.classList.toggle('moved', !!placement);
+  $('#place-bar').hidden = !placing;
+  $('#place-target').hidden = !placing || !!placement;
+  syncMapLock();
+  updatePin();
+  if (!placing) return;
+  // Phones get the short version so the bar leaves room for the map.
+  $('#place-help').innerHTML = placement
+    ? `<span class="place-long"><strong>Drag</strong> to move the job and <strong>turn the ↻ handle</strong> to rotate it; the handle points along the job's north. <span class="muted">Tap a point to turn about it instead.</span></span>` +
+      `<span class="place-short"><strong>Drag</strong> to move, <strong>turn ↻</strong> to rotate. <span class="muted">Tap a point to pivot on it.</span></span>`
+    : `<span class="place-long"><strong>Find the site:</strong> pan and zoom until the target in the middle of the map is where this job goes, then tap Put it here.</span>` +
+      `<span class="place-short"><strong>Find the site:</strong> put the target where the job goes, then tap Put it here.</span>`;
+  $('#place-fields').hidden = !placement;
+  const here = $('#place-here');
+  here.textContent = placement ? 'Bring to middle' : 'Put it here';
+  here.classList.toggle('primary', !placement);
+  $('#place-reset').hidden = !placement;
+  const done = $('#place-done');
+  done.textContent = placement ? 'Done' : 'Cancel';
+  done.classList.toggle('primary', !!placement);
+  renderPlaceFields();
+}
+
+function renderPlaceFields() {
+  if (!placing || !placement) return;
+  const input = $<HTMLInputElement>('#place-rotation');
+  if (document.activeElement !== input) {
+    input.value = formatDms(placement.rotation);
+    input.classList.remove('invalid');
+  }
+  const pivot = pivotPoint();
+  $('#place-pivot').textContent = pivot ? `pivot ${pivot.name}` : '';
+}
+
+/** The pin the job turns about, with a handle along the job's north. */
+function updatePin() {
+  if (!placing || !placement) {
+    pin?.remove();
+    pin = undefined;
+    return;
+  }
+  if (!pin) {
+    const el = document.createElement('div');
+    el.className = 'place-pin';
+    el.innerHTML = '<div class="pin-arm"></div><div class="pin-dot"></div><div class="pin-knob" title="Turn the job" role="img" aria-label="Turn the job">↻</div>';
+    pin = new maplibregl.Marker({ element: el, rotationAlignment: 'map', pitchAlignment: 'viewport' }).setLngLat([placement.lon, placement.lat]).addTo(map);
+  }
+  pin.setLngLat([placement.lon, placement.lat]).setRotation(placement.rotation);
+}
+
+function placementEntries(pl: Placement): [string, string][] {
+  const unit = jobUnit();
+  const len = (v: number) => `${(v / unit.metres).toFixed(3)} ${unit.label}`;
+  const pivot = pivotPoint();
+  return [
+    ['Pinned at', `${pivot ? `${pivot.name}, ` : ''}N ${len(pl.north)}, E ${len(pl.east)}`],
+    ['Which is at', `${pl.lat.toFixed(8)}, ${pl.lon.toFixed(8)} (WGS84)`],
+    ['Rotation', `${formatDms(pl.rotation)} added to the job's bearings`],
+    ['Placed', `${pl.updated.slice(0, 16).replace('T', ' ')} UTC`],
+    ['How', 'By eye against the basemap. Distances and angles are kept as measured.'],
+  ];
+}
+
+/** A tap while placing moves the pin to that point, so the job turns about it. */
+function pivotAt(at: maplibregl.Point) {
+  if (!doc || !placement) return;
+  const hit = nearestPoint(at);
+  const p = hit && hit.d <= TAP_TOLERANCE ? doc.points[hit.index] : undefined;
+  if (p?.coords.source === 'Placed') setPlacement(repin(placement, p.coords.north!, p.coords.east!), true);
+}
+
+$('#place-job').addEventListener('click', () => setPlacing(!placing));
+$('#place-start').addEventListener('click', () => {
+  setPlacing(true);
+  // On a phone, get the panel out of the way of the map.
+  setSheet(false);
+});
+$('#place-done').addEventListener('click', () => setPlacing(false));
+$('#place-reset').addEventListener('click', () => setPlacement(undefined, true));
+$('#place-here').addEventListener('click', () => {
+  if (!doc) return;
+  const c = map.getCenter();
+  if (placement) return setPlacement({ ...placement, lat: c.lat, lon: c.lng }, true);
+  const pl = initialPlacement(doc.points, c.lat, c.lng);
+  if (!pl) return;
+  setPlacement(pl, true);
+  renderPlace();
+  refreshMap(true);
+});
+$<HTMLInputElement>('#place-rotation').addEventListener('change', (e) => {
+  const input = e.target as HTMLInputElement;
+  const rotation = parseAngle(input.value);
+  input.classList.toggle('invalid', rotation === undefined);
+  if (rotation === undefined || !placement) return;
+  input.blur();
+  setPlacement({ ...placement, rotation }, true);
+});
+
+mapArea.addEventListener('pointerdown', (e) => {
+  if (!placing || !placement) return;
+  placePointers.add(e.pointerId);
+  // A second finger is a pinch: leave the job where it is.
+  if (placePointers.size > 1) {
+    if (placeDrag?.moved) setPlacement(placement, true);
+    placeDrag = undefined;
+    return;
+  }
+  const turn = !!(e.target as HTMLElement).closest('.pin-knob');
+  placeDrag = { pointer: e.pointerId, turn, at: lngLatAt(e), start: placement, moved: false };
+  mapArea.setPointerCapture(e.pointerId);
+});
+mapArea.addEventListener('pointermove', (e) => {
+  if (!placeDrag || e.pointerId !== placeDrag.pointer) return;
+  const { start, at } = placeDrag;
+  const now = lngLatAt(e);
+  placeDrag.moved = true;
+  // Fade the bar so it doesn't hide what's being lined up.
+  $('#place-bar').classList.add('dragging');
+  if (placeDrag.turn) {
+    const turned = bearingFromPin(start, now.lat, now.lng) - bearingFromPin(start, at.lat, at.lng);
+    setPlacement({ ...start, rotation: start.rotation + turned }, false);
+  } else {
+    setPlacement({ ...start, lat: start.lat + now.lat - at.lat, lon: start.lon + now.lng - at.lng }, false);
+  }
+});
+const endPlaceDrag = (e: PointerEvent) => {
+  placePointers.delete(e.pointerId);
+  if (placeDrag?.pointer !== e.pointerId) return;
+  const moved = placeDrag.moved;
+  placeDrag = undefined;
+  $('#place-bar').classList.remove('dragging');
+  if (moved) setPlacement(placement, true);
+};
+mapArea.addEventListener('pointerup', endPlaceDrag);
+mapArea.addEventListener('pointercancel', endPlaceDrag);
+
+/**
+ * Arrow keys move the job a screen pixel (ten with Shift); [ and ] turn it a
+ * minute of arc (ten with Shift); Esc finishes.
+ */
+function placeKey(e: KeyboardEvent): boolean {
+  if ((e.target as HTMLElement).closest('input, select, textarea')) return false;
+  if (e.key === 'Escape') {
+    setPlacing(false);
+    e.preventDefault();
+    return true;
+  }
+  if (!placement) return false;
+  const turn = { '[': -1, ']': 1, '{': -1, '}': 1 }[e.key];
+  const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+  const step = e.shiftKey ? 10 : 1;
+  if (turn) {
+    setPlacement({ ...placement, rotation: placement.rotation + (turn * step) / 60 }, true);
+  } else if (dir) {
+    const c = map.project([placement.lon, placement.lat]);
+    const to = map.unproject([c.x + dir[0] * step, c.y + dir[1] * step]);
+    setPlacement({ ...placement, lat: to.lat, lon: to.lng }, true);
+  } else {
+    return false;
+  }
+  e.preventDefault();
+  return true;
+}

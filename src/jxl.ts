@@ -9,6 +9,7 @@ import { applyPlaneAdjustment } from './datum';
 import { attrEntries, child, children, flatten, num, text_, type Attrs } from './xml';
 import { reduceTotalStation, type TsContext } from './totalstation';
 import { humanize, observationProperties, RecordIndex, type PropGroup } from './properties';
+import type { Placement } from './placement';
 
 export type { Attrs } from './xml';
 
@@ -19,8 +20,8 @@ export interface Coordinates {
   north?: number;
   east?: number;
   elevation?: number;
-  /** Where the lat/lon came from. */
-  source?: 'WGS84' | 'ECEF' | 'Grid';
+  /** Where the lat/lon came from: the file, the grid, or placed by hand on the map. */
+  source?: 'WGS84' | 'ECEF' | 'Grid' | 'Placed';
   /** Grid position was computed here from a total station observation. */
   reduced?: boolean;
   /** Where to draw the point on the basemap, after any datum shift. */
@@ -69,6 +70,8 @@ export interface JxlDocument {
   crs: CrsInfo;
   /** Attributes of the <JOBFile> root: jobName, TimeStamp, controllerSerialNumber, ... */
   job: Attrs;
+  /** Where a job in assumed coordinates was placed on the map by hand. */
+  placement?: Placement;
 }
 
 export class JxlParseError extends Error {}

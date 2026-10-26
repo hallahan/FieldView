@@ -18,6 +18,7 @@ import {
 import { GitHub, GitHubError, parseRepo, type Commit, type RepoInfo, type RepoRef } from './github';
 import type { JxlDocument } from './jxl';
 import { loadIndex, saveJob, type JobFeature } from './library';
+import type { Placement } from './placement';
 import { addRepo, loadSettings, repoSlug, sameRepo, saveSettings, type Settings } from './settings';
 import { stash, takeStash, type Stash } from './stash';
 import { esc, formatBytes } from './util';
@@ -30,6 +31,8 @@ export interface JobOrigin {
   path: string;
   /** Commit the file was read at, when it's an older version. */
   version?: string;
+  /** Where the job was placed on the map by hand, from the repo's index. */
+  placement?: Placement;
 }
 
 interface RepoState {
@@ -247,7 +250,12 @@ export function initJobs({ map, open, isSheet, setSheet, showLines }: Options) {
     try {
       const text = await fetchJob(slug, job, sha);
       setJobsStatus('');
-      open(text, fileName(job, sha), new TextEncoder().encode(text).length, { repo: slug, path: job.properties.path, version: sha });
+      open(text, fileName(job, sha), new TextEncoder().encode(text).length, {
+        repo: slug,
+        path: job.properties.path,
+        version: sha,
+        placement: job.properties.placement,
+      });
     } catch (e) {
       setJobsStatus(esc((e as Error).message), true);
     }

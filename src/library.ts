@@ -10,6 +10,7 @@
 import type { Feature, FeatureCollection, Point } from 'geojson';
 import { gitBlobSha, type GitHub } from './github';
 import type { JxlDocument } from './jxl';
+import { samePlacement, type Placement } from './placement';
 
 export const INDEX_PATH = 'index.geojson';
 
@@ -30,6 +31,8 @@ export interface JobProps {
   /** When the job file was last written on the controller. */
   jobTimeStamp?: string;
   crs?: string;
+  /** Where a job in assumed coordinates was placed on the map by hand. */
+  placement?: Placement;
 }
 
 export type JobFeature = Feature<Point | null, JobProps>;
@@ -113,6 +116,7 @@ export function upsertJob(index: JobIndex, doc: JxlDocument, name: string, blobS
       ...(doc.job.product && { product: [doc.job.product, doc.job.productVersion].filter(Boolean).join(' ') }),
       ...(doc.job.TimeStamp && { jobTimeStamp: doc.job.TimeStamp }),
       ...(doc.crs.projection?.label && { crs: doc.crs.projection.label }),
+      ...(doc.placement && { placement: doc.placement }),
     },
   };
   const features = index.features.filter((f) => f.properties.path !== path).concat(feature);
@@ -137,12 +141,13 @@ export async function saveJob(gh: GitHub, text: string, doc: JxlDocument, fileNa
   const commit = await gh.commitFiles(info.defaultBranch, async (read) => {
     const index = parseIndex(await read(INDEX_PATH));
     const prev = index.features.find((f) => f.properties.path === path);
-    if (prev?.properties.blobSha === blobSha) return undefined;
+    const sameFile = prev?.properties.blobSha === blobSha;
+    if (sameFile && samePlacement(prev.properties.placement, doc.placement)) return undefined;
     const next = upsertJob(index, doc, name, blobSha, size, now);
     const n = next.features.find((f) => f.properties.path === path)!.properties.pointCount;
     const verb = prev ? 'Update' : 'Add';
     return {
-      message: `${verb} ${name} (${n} points)${doc.job.controllerSerialNumber ? `\n\nController ${doc.job.controllerSerialNumber}` : ''}`,
+      message: `${sameFile ? `Place ${name} on the map` : `${verb} ${name} (${n} points)`}${doc.job.controllerSerialNumber ? `\n\nController ${doc.job.controllerSerialNumber}` : ''}`,
       files: [
         { path, content: text },
         { path: INDEX_PATH, content: serializeIndex(next) },
