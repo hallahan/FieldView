@@ -1,7 +1,7 @@
 // Minimal GitHub REST client for keeping jobs in a repo, using fetch only.
 //
 // api.github.com allows CORS, so the browser talks to it directly. Reads of a
-// public repo work without a token; writes and private repos need one.
+// public repo work signed out; writes and private repos need a sign-in.
 
 const API = 'https://api.github.com';
 
@@ -40,11 +40,16 @@ export class GitHubError extends Error {
   }
 }
 
+/** A token, or a function that returns a fresh one (undefined when signed out). */
+export type TokenSource = string | (() => Promise<string | undefined>);
+
 export class GitHub {
   constructor(
     readonly repo: RepoRef,
-    private token?: string,
+    private token?: TokenSource,
   ) {}
+
+  private authed = false;
 
   get slug() {
     return `${this.repo.owner}/${this.repo.name}`;
@@ -55,17 +60,19 @@ export class GitHub {
       Accept: init.accept ?? 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
     };
-    if (this.token) headers.Authorization = `Bearer ${this.token}`;
+    const token = typeof this.token === 'function' ? await this.token() : this.token;
+    if (token) headers.Authorization = `Bearer ${token}`;
     if (init.body) headers['Content-Type'] = 'application/json';
     // GitHub caches GETs for up to a minute; skip that so a fresh save shows.
     const res = await fetch(`${API}${path}`, { ...init, headers, cache: 'no-store' });
-    if (!res.ok && res.status !== 404) throw await toError(res, this.slug, !!this.token);
+    this.authed = !!token;
+    if (!res.ok && res.status !== 404) throw await toError(res, this.slug, !!token);
     return res;
   }
 
   private async json<T>(path: string, init?: RequestInit): Promise<T> {
     const res = await this.request(path, init);
-    if (res.status === 404) throw notFound(this.slug, !!this.token);
+    if (res.status === 404) throw notFound(this.slug, this.authed);
     return res.json() as Promise<T>;
   }
 
@@ -167,8 +174,8 @@ function encodePath(path: string) {
 function notFound(slug: string, authed: boolean) {
   return new GitHubError(
     authed
-      ? `Can't find ${slug}. Check the name, and that your token has access to it.`
-      : `Can't find ${slug}. If it's a private repo, add a GitHub token in Settings.`,
+      ? `Can't find ${slug}, or OpenFieldView hasn't been given access to it.`
+      : `Can't find ${slug}. If it's a private repo, sign in with GitHub.`,
     404,
   );
 }
@@ -180,14 +187,14 @@ async function toError(res: Response, slug: string, authed: boolean): Promise<Gi
   } catch {
     // Not JSON.
   }
-  if (res.status === 401) return new GitHubError('GitHub rejected the token. It may have expired; add a new one in Settings.', 401);
+  if (res.status === 401) return new GitHubError('Your GitHub sign-in has expired. Sign in again.', 401);
   if (res.status === 403 && res.headers.get('x-ratelimit-remaining') === '0') {
     return new GitHubError(
-      authed ? 'GitHub rate limit reached. Try again in a few minutes.' : 'GitHub allows 60 requests an hour without a token. Add one in Settings, or try again later.',
+      authed ? 'GitHub rate limit reached. Try again in a few minutes.' : 'GitHub allows 60 requests an hour when signed out. Sign in with GitHub, or try again later.',
       403,
     );
   }
-  if (res.status === 403) return new GitHubError(`Your token can't write to ${slug}. It needs Contents: Read and write.`, 403);
+  if (res.status === 403) return new GitHubError(`You don't have permission to write to ${slug}.`, 403);
   return new GitHubError(`GitHub error ${res.status}${detail ? `: ${detail}` : ''}`, res.status);
 }
 

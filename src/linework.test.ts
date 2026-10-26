@@ -196,6 +196,30 @@ describe('buildLinework', () => {
     expect(lw.undefinedCodes).toEqual(['EP']);
   });
 
+  it('records how each figure was built, by the id on its map feature', () => {
+    const lw = buildLinework(
+      points([
+        ['A', 'GUT BL', 0, 0],
+        ['B', 'GUT', 10, 0],
+        ['C', 'PCC JP A', 5, 5],
+        ['D', 'PCC C2 2', 20, 20],
+      ]),
+      lib,
+      0.3048,
+    );
+    expect(lw.lines.features.map((f) => f.properties.fid)).toEqual([0, 1, 2, 3]);
+    expect(lw.figures.map((f) => [f.fid, f.code, f.shape, f.nodes.map((n) => n.index), f.offset?.of])).toEqual([
+      [0, 'PCC', 'join', [2, 0], undefined],
+      [1, 'PCC', 'circleCenter', [3], undefined],
+      [2, 'GUT', 'line', [0, 1], undefined],
+      // The back of curb the library adds alongside.
+      [3, 'GUT', 'line', [0, 1], 2],
+    ]);
+    // The radius after C2 is in the job's units, here feet.
+    expect(lw.figures[1].value).toBeCloseTo(0.6096, 9);
+    for (const [x, y] of coordsOf(lw.lines.features[1].geometry)) expect(Math.hypot(x - 20, y - 20)).toBeCloseTo(0.6096, 3);
+  });
+
   it('skips deleted points', () => {
     const pts = points([
       ['1', 'EGL BL', 0, 0],

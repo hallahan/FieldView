@@ -1,12 +1,25 @@
 // The Jobs view: jobs saved in GitHub repos as a list and as pins on the map,
-// plus saving the open file and the repo/token settings.
+// plus uploading the open file and the GitHub sign-in and repo choices.
 
 import maplibregl, { type GeoJSONSource, type MapMouseEvent } from 'maplibre-gl';
 import type { FeatureCollection, Point } from 'geojson';
+import {
+  beginSignIn,
+  chooseReposUrl,
+  completeRedirect,
+  currentSession,
+  getToken,
+  listRepos,
+  signInAvailable,
+  SignInExpired,
+  signOut,
+  type PickableRepo,
+} from './auth';
 import { GitHub, GitHubError, parseRepo, type Commit, type RepoInfo, type RepoRef } from './github';
 import type { JxlDocument } from './jxl';
 import { loadIndex, saveJob, type JobFeature } from './library';
-import { loadSettings, repoSlug, saveSettings, setupLink, takeSetupFromUrl, type Settings } from './settings';
+import { addRepo, loadSettings, repoSlug, sameRepo, saveSettings, type Settings } from './settings';
+import { stash, takeStash, type Stash } from './stash';
 import { esc, formatBytes } from './util';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
@@ -38,19 +51,16 @@ interface Options {
 const PIN = '#1c7ed6';
 
 export function initJobs({ map, open, isSheet, setSheet, showLines }: Options) {
-  let settings: Settings = loadSettings();
-  const fromLink = takeSetupFromUrl(settings);
-  if (fromLink) {
-    settings = fromLink;
-    saveSettings(settings);
-  }
+  const settings: Settings = loadSettings();
   let repos: RepoState[] = [];
   let loadedOnce = false;
   let active = false;
   let selected: string | undefined;
   let saveTarget: { doc: JxlDocument; text: string; name: string; origin?: JobOrigin } | undefined;
+  let savePickerOpen = false;
+  let settingsPickerOpen = false;
 
-  const client = (slug: string) => new GitHub(parseRepo(slug)!, settings.token);
+  const client = (slug: string) => new GitHub(parseRepo(slug)!, getToken);
   const key = (repo: string, f: JobFeature) => `${repo}|${f.properties.path}`;
 
   // ------------------------------------------------------------ loading
@@ -59,15 +69,19 @@ export function initJobs({ map, open, isSheet, setSheet, showLines }: Options) {
     const status = $('#jobs-status');
     if (!settings.repos.length) {
       repos = [];
-      status.innerHTML = 'Add a GitHub repo below to keep jobs there.';
+      status.innerHTML = currentSession() ? 'Pick a repo below to see its jobs.' : 'Sign in with GitHub below to see your jobs.';
       ($('#library-settings') as HTMLDetailsElement).open = true;
+      if (currentSession() && !settingsPickerOpen) {
+        settingsPickerOpen = true;
+        renderSettings();
+      }
       render();
       return;
     }
     status.textContent = 'Loading jobs…';
     repos = await Promise.all(
       settings.repos.map(async (ref): Promise<RepoState> => {
-        const gh = new GitHub(ref, settings.token);
+        const gh = new GitHub(ref, getToken);
         try {
           const [info, index] = await Promise.all([gh.info(), loadIndex(gh)]);
           return { ref, info, jobs: index.features };
@@ -360,85 +374,65 @@ export function initJobs({ map, open, isSheet, setSheet, showLines }: Options) {
   /** Call whenever a file is opened in the viewer. */
   function setOpenFile(target: typeof saveTarget) {
     saveTarget = target;
+    savePickerOpen = false;
     renderSaveRow();
   }
+
+  /** The repo the open file came from, else the one picked last time. */
+  const uploadTarget = () => saveTarget?.origin?.repo ?? settings.uploadRepo;
 
   function renderSaveRow() {
     const el = $('#save-row');
     el.hidden = !saveTarget;
     if (!saveTarget) return;
-    const slugs = settings.repos.map(repoSlug);
-    const origin = saveTarget.origin?.repo;
-    const preferred = origin && slugs.includes(origin) ? origin : slugs[0];
-    const options = slugs.map((s) => `<option ${s === preferred ? 'selected' : ''}>${esc(s)}</option>`);
+    const session = currentSession();
+    if (!session) {
+      el.innerHTML = signInAvailable()
+        ? `<button id="signin-btn" class="primary github">${GITHUB_MARK} Sign in with GitHub to upload</button><div id="save-status" class="muted"></div>`
+        : `<p class="muted small">Uploading needs GitHub sign-in, which isn't set up on this site yet.</p><div id="save-status" class="muted"></div>`;
+      el.querySelector('#signin-btn')?.addEventListener('click', () => signIn('upload'));
+      return;
+    }
+    const target = uploadTarget();
+    const picking = savePickerOpen || !target;
     el.innerHTML = `
-      <div class="save-controls">
-        <select id="save-repo" ${slugs.length < 2 ? 'hidden' : ''}>${options.join('')}</select>
-        <button id="save-btn" class="primary">Upload to ${slugs.length === 1 ? esc(preferred) : 'GitHub'}</button>
+      <div class="save-controls" ${picking ? 'hidden' : ''}>
+        <button id="save-btn" class="primary" title="Upload to ${esc(target ?? '')}">Upload to ${esc(target?.split('/')[1] ?? '')}</button>
+        <button id="change-repo">Change</button>
       </div>
-      <form id="connect-form" class="connect" hidden>
-        <p class="small">Connect to GitHub to upload. This is only needed once on each device.</p>
-        <label>Repo<input id="connect-repo" placeholder="owner/repo" value="${esc(preferred ?? '')}" autocomplete="off" autocapitalize="off" spellcheck="false" /></label>
-        <label>Token<input id="connect-token" type="password" placeholder="github_pat_…" autocomplete="off" /></label>
-        <p class="muted small"><a href="${tokenUrl()}" target="_blank" rel="noopener">Create a token on GitHub</a>: under
-          <em>Repository access</em> pick the repo, and give it <em>Contents: Read and write</em>.
-          The token stays in this browser.</p>
-        <div class="actions">
-          <button type="submit" class="primary">Connect and upload</button>
-          <button type="button" data-act="cancel">Cancel</button>
-        </div>
-      </form>
+      <div id="save-picker" ${picking ? '' : 'hidden'}></div>
       <div id="save-status" class="muted"></div>`;
-    el.querySelector('#save-btn')!.addEventListener('click', () => (connected() ? upload() : showConnect(true)));
-    el.querySelector('[data-act=cancel]')!.addEventListener('click', () => showConnect(false));
-    el.querySelector('#connect-form')!.addEventListener('submit', (e) => {
-      e.preventDefault();
-      connect();
+    el.querySelector('#save-btn')!.addEventListener('click', () => upload(target!));
+    el.querySelector('#change-repo')!.addEventListener('click', () => {
+      savePickerOpen = true;
+      renderSaveRow();
     });
+    if (picking) {
+      renderPicker($('#save-picker'), {
+        title: 'Pick the repo to upload to',
+        forUpload: true,
+        then: 'upload',
+        onPick: (slug) => {
+          settings.uploadRepo = slug;
+          addRepo(settings, slug);
+          saveSettings(settings);
+          savePickerOpen = false;
+          renderSettings();
+          renderSaveRow();
+          upload(slug);
+        },
+        onCancel: target
+          ? () => {
+              savePickerOpen = false;
+              renderSaveRow();
+            }
+          : undefined,
+      });
+    }
   }
 
-  const connected = () => !!settings.token && settings.repos.length > 0;
-
-  function showConnect(on: boolean) {
-    $('#connect-form').hidden = !on;
-    $('.save-controls').hidden = on;
-    $('#save-status').textContent = '';
-    if (on) ($('#connect-repo') as HTMLInputElement).focus();
-  }
-
-  /** Check the repo and token work before keeping them, then upload. */
-  async function connect() {
-    const status = $('#save-status');
-    const ref = parseRepo($<HTMLInputElement>('#connect-repo').value);
-    const token = $<HTMLInputElement>('#connect-token').value.trim() || settings.token;
-    if (!ref) {
-      status.innerHTML = '<span class="error-text">Enter the repo as owner/repo, for example hallahan/OFVData.</span>';
-      return;
-    }
-    if (!token) {
-      status.innerHTML = '<span class="error-text">Paste a GitHub token.</span>';
-      return;
-    }
-    status.textContent = 'Checking access…';
-    try {
-      const info = await new GitHub(ref, token).info();
-      if (!info.canPush) throw new Error(`This token can read ${repoSlug(ref)} but can't write to it. It needs Contents: Read and write.`);
-    } catch (e) {
-      status.innerHTML = `<span class="error-text">${esc((e as Error).message)}</span>`;
-      return;
-    }
-    settings.token = token;
-    if (!settings.repos.some((r) => repoSlug(r) === repoSlug(ref))) settings.repos.push(ref);
-    saveSettings(settings);
-    renderSettings();
-    renderSaveRow();
-    $<HTMLSelectElement>('#save-repo').value = repoSlug(ref);
-    upload();
-  }
-
-  async function upload() {
+  async function upload(slug: string) {
     if (!saveTarget) return;
-    const slug = $<HTMLSelectElement>('#save-repo').value;
     const btn = $<HTMLButtonElement>('#save-btn');
     const status = $('#save-status');
     btn.disabled = true;
@@ -452,93 +446,146 @@ export function initJobs({ map, open, isSheet, setSheet, showLines }: Options) {
       saveTarget.origin = { repo: slug, path: r.path };
       loadedOnce = false; // reload the list next time Jobs is shown
     } catch (e) {
-      status.innerHTML = `<span class="error-text">${esc((e as Error).message)}</span>`;
-      // A rejected token goes back to the connect form.
-      if (e instanceof GitHubError && e.status === 401) {
-        settings.token = undefined;
-        saveSettings(settings);
-        showConnect(true);
-        $('#save-status').innerHTML = `<span class="error-text">${esc((e as Error).message)}</span>`;
+      const message = (e as Error).message;
+      if (expired(e)) {
+        renderSaveRow();
+        renderSettings();
       }
+      $('#save-status').innerHTML = `<span class="error-text">${esc(message)}</span>`;
     } finally {
       btn.disabled = false;
     }
+  }
+
+  /** True when the error means the sign-in is gone, after signing out. */
+  function expired(e: unknown) {
+    if (e instanceof SignInExpired || (e instanceof GitHubError && e.status === 401)) {
+      signOut();
+      pickable = undefined;
+      return true;
+    }
+    return false;
+  }
+
+  async function signIn(then: Stash['then']) {
+    await stash({ then, file: saveTarget && { text: saveTarget.text, name: saveTarget.name, origin: saveTarget.origin } });
+    await beginSignIn();
+  }
+
+  // ------------------------------------------------------------ repo picker
+
+  let pickable: Promise<PickableRepo[]> | undefined;
+
+  function renderPicker(
+    el: HTMLElement,
+    opts: { title: string; forUpload: boolean; then: Stash['then']; onPick: (slug: string) => void; onCancel?: () => void },
+  ) {
+    el.className = 'picker';
+    el.innerHTML = `<p class="picker-title">${esc(opts.title)}</p><p class="muted small">Loading your repos…</p>`;
+    pickable ??= listRepos();
+    pickable.then(
+      (list) => {
+        const rows = list.map((r) => {
+          const shown = settings.repos.some((x) => sameRepo(repoSlug(x), r.slug));
+          const disabled = opts.forUpload ? !r.canPush : shown;
+          const note = opts.forUpload ? (r.canPush ? '' : 'read only') : shown ? 'added' : '';
+          return `<li><button data-slug="${esc(r.slug)}" ${disabled ? 'disabled' : ''}>
+            <span class="repo-name"><span class="muted">${esc(r.owner)}/</span>${esc(r.name)}</span>
+            <span class="tag ${r.private ? 'private' : ''}">${r.private ? 'private' : 'public'}</span>${note ? `<span class="muted small">${note}</span>` : ''}
+          </button></li>`;
+        });
+        el.innerHTML = `
+          <p class="picker-title">${esc(opts.title)}</p>
+          ${
+            list.length
+              ? `<ul class="picker-list">${rows.join('')}</ul>
+                 <p class="muted small">Repo not listed? <button class="link" data-act="choose">Give OpenFieldView access to it on GitHub</button></p>`
+              : `<p class="small">OpenFieldView can't see any of your repos yet. Choose which ones it may use on GitHub, then come back here.</p>
+                 <button class="primary github" data-act="choose">${GITHUB_MARK} Choose repos on GitHub</button>`
+          }
+          ${opts.onCancel ? '<div class="actions"><button data-act="cancel">Cancel</button></div>' : ''}`;
+        el.querySelectorAll<HTMLButtonElement>('[data-slug]').forEach((b) => b.addEventListener('click', () => opts.onPick(b.dataset.slug!)));
+        el.querySelector('[data-act=choose]')!.addEventListener('click', () => chooseRepos(opts.then));
+        el.querySelector('[data-act=cancel]')?.addEventListener('click', () => opts.onCancel!());
+      },
+      (e) => {
+        pickable = undefined;
+        const gone = expired(e);
+        el.innerHTML = `<p class="error-text small">${esc((e as Error).message)}</p>
+          <div class="actions"><button data-act="retry">${gone ? 'Sign in again' : 'Try again'}</button></div>`;
+        el.querySelector('[data-act=retry]')!.addEventListener('click', () => (gone ? signIn(opts.then) : renderPicker(el, opts)));
+      },
+    );
+  }
+
+  async function chooseRepos(then: Stash['then']) {
+    await stash({ then, file: saveTarget && { text: saveTarget.text, name: saveTarget.name, origin: saveTarget.origin } });
+    location.assign(chooseReposUrl());
   }
 
   // ------------------------------------------------------------ settings
 
   function renderSettings() {
     const body = $('#settings-body');
+    const session = currentSession();
     const list = settings.repos
       .map((r) => {
         const state = repos.find((x) => repoSlug(x.ref) === repoSlug(r));
         const tag = state?.info ? (state.info.private ? 'private' : 'public') : state?.error ? 'error' : '';
-        return `<li><span>${esc(repoSlug(r))} ${tag ? `<span class="tag ${tag}">${tag}</span>` : ''}</span><button data-remove="${esc(repoSlug(r))}" title="Remove">×</button></li>`;
+        return `<li><span>${esc(repoSlug(r))} ${tag ? `<span class="tag ${tag}">${tag}</span>` : ''}</span><button data-remove="${esc(repoSlug(r))}" title="Remove from this list">×</button></li>`;
       })
       .join('');
+    const account = session
+      ? `<div class="account">
+          ${session.avatar ? `<img src="${esc(session.avatar)}&s=48" alt="" width="24" height="24" />` : ''}
+          <span>Signed in as <strong>${esc(session.login)}</strong></span>
+          <button class="link" id="sign-out">Sign out</button>
+        </div>`
+      : signInAvailable()
+        ? `<button id="signin-jobs" class="primary github">${GITHUB_MARK} Sign in with GitHub</button>`
+        : `<p class="muted small">GitHub sign-in isn't set up on this site yet.</p>`;
     body.innerHTML = `
-      <ul class="repo-list">${list}</ul>
-      <form id="add-repo" class="inline-form">
-        <input id="repo-input" placeholder="owner/repo" autocomplete="off" autocapitalize="off" spellcheck="false" />
-        <button type="submit">Add repo</button>
-      </form>
-      <p class="muted small">Public repos can be browsed without a token. Saving, and private repos, need a
-        <a href="${tokenUrl()}" target="_blank" rel="noopener">fine-grained token</a>
-        with access to those repos and <em>Contents: Read and write</em>. It's kept in this browser only.</p>
-      <form id="token-form" class="inline-form">
-        <input id="token-input" type="password" placeholder="${settings.token ? 'Token saved. Paste to replace' : 'github_pat_…'}" autocomplete="off" />
-        <button type="submit">Save</button>
-      </form>
-      ${settings.token ? '<button class="link" id="forget-token">Forget token</button>' : ''}
-      ${
-        settings.repos.length
-          ? `<div class="setup-link">
-              <p class="muted small">Set up another device, like the controller, with the same repos: open this link there.</p>
-              <label class="check"><input type="checkbox" id="link-token" /><span>Include the token (only send the link somewhere private)</span></label>
-              <button id="copy-link">Copy setup link</button> <span id="copy-status" class="muted"></span>
-            </div>`
-          : ''
-      }`;
-    body.querySelector('#add-repo')!.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const input = $<HTMLInputElement>('#repo-input');
-      const ref = parseRepo(input.value);
-      if (!ref) {
-        input.setCustomValidity('Enter owner/repo, for example hallahan/fieldview-data');
-        input.reportValidity();
-        return;
-      }
-      if (!settings.repos.some((r) => repoSlug(r) === repoSlug(ref))) settings.repos.push(ref);
-      update();
+      ${account}
+      ${list ? `<ul class="repo-list">${list}</ul>` : ''}
+      ${session ? (settingsPickerOpen ? '<div id="settings-picker"></div>' : '<div><button id="add-repo-btn">Add a repo</button></div>') : ''}
+      ${!session && list ? '<p class="muted small">Public repos can be browsed signed out. Sign in for private repos and uploading.</p>' : ''}`;
+    body.querySelector('#signin-jobs')?.addEventListener('click', () => signIn('jobs'));
+    body.querySelector('#sign-out')?.addEventListener('click', () => {
+      signOut();
+      pickable = undefined;
+      settingsPickerOpen = false;
+      renderSettings();
+      renderSaveRow();
     });
-    body.querySelector('#repo-input')!.addEventListener('input', (e) => (e.target as HTMLInputElement).setCustomValidity(''));
+    body.querySelector('#add-repo-btn')?.addEventListener('click', () => {
+      settingsPickerOpen = true;
+      renderSettings();
+    });
+    const pickerEl = body.querySelector<HTMLElement>('#settings-picker');
+    if (pickerEl) {
+      renderPicker(pickerEl, {
+        title: 'Pick a repo to show its jobs',
+        forUpload: false,
+        then: 'jobs',
+        onPick: (slug) => {
+          addRepo(settings, slug);
+          settingsPickerOpen = false;
+          update();
+        },
+        onCancel: settings.repos.length
+          ? () => {
+              settingsPickerOpen = false;
+              renderSettings();
+            }
+          : undefined,
+      });
+    }
     body.querySelectorAll<HTMLButtonElement>('[data-remove]').forEach((b) =>
       b.addEventListener('click', () => {
         settings.repos = settings.repos.filter((r) => repoSlug(r) !== b.dataset.remove);
         update();
       }),
     );
-    body.querySelector('#token-form')!.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const token = $<HTMLInputElement>('#token-input').value.trim();
-      if (token) {
-        settings.token = token;
-        update();
-      }
-    });
-    body.querySelector('#forget-token')?.addEventListener('click', () => {
-      settings.token = undefined;
-      update();
-    });
-    body.querySelector('#copy-link')?.addEventListener('click', async () => {
-      const link = setupLink(settings, $<HTMLInputElement>('#link-token').checked);
-      try {
-        await navigator.clipboard.writeText(link);
-        $('#copy-status').textContent = 'Copied.';
-      } catch {
-        prompt('Copy this link', link);
-      }
-    });
   }
 
   function update() {
@@ -568,16 +615,39 @@ export function initJobs({ map, open, isSheet, setSheet, showLines }: Options) {
   );
 
   renderSettings();
-  // A setup link means the person wants to see their jobs.
-  if (fromLink) showView('jobs');
+  resumeAfterGitHub();
+
+  /** Pick up where the person left off before going to GitHub to sign in or choose repos. */
+  async function resumeAfterGitHub() {
+    let result: Awaited<ReturnType<typeof completeRedirect>>;
+    let error = '';
+    try {
+      result = await completeRedirect();
+    } catch (e) {
+      error = (e as Error).message;
+    }
+    if (!result && !error) return;
+    pickable = undefined;
+    const before = await takeStash();
+    if (before?.file) {
+      const { text, name, origin } = before.file;
+      open(text, name, new TextEncoder().encode(text).length, origin as JobOrigin);
+    }
+    if (before?.then === 'jobs' || (!before?.file && !saveTarget)) {
+      showView('jobs');
+      if (result && !settings.repos.length) settingsPickerOpen = true;
+      ($('#library-settings') as HTMLDetailsElement).open = true;
+      renderSettings();
+      if (error) setJobsStatus(esc(error), true);
+    } else {
+      // Back from choosing repos: show the fresh list straight away.
+      savePickerOpen = result === 'repos-changed';
+      renderSaveRow();
+      if (error) $('#save-status').innerHTML = `<span class="error-text">${esc(error)}</span>`;
+    }
+  }
 
   return { addLayers, handleClick, setOpenFile, showView, isActive: () => active };
-}
-
-/** GitHub's new-token page, pre-filled where GitHub supports it. */
-function tokenUrl() {
-  const q = new URLSearchParams({ name: 'OpenFieldView', description: 'Upload JXL jobs from OpenFieldView', contents: 'write' });
-  return `https://github.com/settings/personal-access-tokens/new?${q}`;
 }
 
 function formatDate(iso: string, time = false) {
@@ -585,3 +655,6 @@ function formatDate(iso: string, time = false) {
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleString(undefined, time ? { dateStyle: 'medium', timeStyle: 'short' } : { dateStyle: 'medium' });
 }
+
+const GITHUB_MARK =
+  '<svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>';

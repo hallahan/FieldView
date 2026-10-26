@@ -6,14 +6,15 @@ import { PRESETS } from './crs';
 import { currentEpoch, nad83ToWgs84 } from './datum';
 import { DEFAULT_CONTROLS, jobLibraryName, lookupFeature, parseFxl, type FeatureLibrary } from './fxl';
 import { deleteLibrary, getLibrary, listLibraries, saveLibrary } from './librarystore';
-import { initLineMap } from './linemap';
+import { initLineMap, LINE_LAYERS } from './linemap';
 import { parseJxl, type JxlDocument, type JxlPoint, type ObservationType } from './jxl';
 import { initJobs, type JobOrigin } from './jobs';
-import { buildLinework, parseCode, type Linework } from './linework';
+import { buildLinework, parseCode, type LineFigure, type Linework } from './linework';
+import { lineGroups, linesAtPoint } from './lineprops';
 import { projectGrid, resolveProjection } from './projection';
 import { featureGroups } from './featureprops';
 import { groundDelta, IMAGERY_TILES, initImagery, isZero, type ImageryOffset } from './imagery';
-import { formatProp, latLonDms, type PropGroup, type Unit } from './properties';
+import { formatProp, latLonDms, type Prop, type PropGroup, type Unit } from './properties';
 import { esc, formatBytes } from './util';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
@@ -56,8 +57,17 @@ const TYPE_SHORT: Record<ObservationType, string> = {
 
 let doc: JxlDocument | undefined;
 let selected: number | undefined;
+/** The selected line or polygon, by fid. Only one of it and `selected` is set. */
+let selectedLine: number | undefined;
 /** Whether the properties panel is showing in place of the point list. */
 let showingDetail = false;
+/**
+ * The line or point the panel was opened from, which its back button returns
+ * to; otherwise it goes back to the list.
+ */
+let back: { point: number } | { line: number } | undefined;
+/** The line a point's panel was opened from. */
+const backLine = () => (back && 'line' in back ? back.line : undefined);
 /** Point indices in list order, after the filter, for stepping through them. */
 let listed: number[] = [];
 let colorBy: 'code' | 'type' = 'code';
@@ -212,37 +222,106 @@ function addPointLayers() {
 }
 
 function rebuildLinework() {
-  linework = doc ? buildLinework(doc.points, library) : undefined;
+  const was = (fid: number | undefined) => (fid !== undefined ? linework?.figures[fid] : undefined);
+  const line = was(selectedLine);
+  const from = was(backLine());
+  linework = doc ? buildLinework(doc.points, library, jobUnit().metres) : undefined;
+  // Keep the selected line, and the line a point was opened from, if they're still drawn.
+  if (line) {
+    selectedLine = sameFigure(line);
+    if (selectedLine === undefined) showingDetail = false;
+  }
+  if (from) {
+    const fid = sameFigure(from);
+    back = fid === undefined ? undefined : { line: fid };
+  }
   refreshLines();
+  setSelectedFilter();
+}
+
+/** The figure in the current linework built from the same points as `f`. */
+function sameFigure(f: LineFigure): number | undefined {
+  return linework?.figures.find(
+    (g) => g.code === f.code && g.shape === f.shape && g.offset?.line.name === f.offset?.line.name && g.nodes[0]?.index === f.nodes[0]?.index,
+  )?.fid;
 }
 
 function refreshLines() {
   lineMap.update(linework?.lines ?? { type: 'FeatureCollection', features: [] }, library, codeColorFn());
 }
 
-// Pick the nearest point within a finger-sized box rather than requiring an
-// exact hit on a small circle.
+// Pick the nearest point or line within a finger-sized box rather than
+// requiring an exact hit on a small circle or a thin line.
 const TAP_TOLERANCE = 14;
+// A tap this close to a point means the point, allowing more for a finger.
+// Further out, a line that's nearer wins, so lines can be picked between
+// closely spaced vertices.
+const POINT_HIT = window.matchMedia('(pointer: coarse)').matches ? 10 : 7;
 map.on('click', (e) => {
   if (aligning) return;
   if (jobs.handleClick(e, TAP_TOLERANCE)) return;
-  if (!map.getLayer('points-circle')) return;
-  const { x, y } = e.point;
-  const hits = map.queryRenderedFeatures(
-    [
-      [x - TAP_TOLERANCE, y - TAP_TOLERANCE],
-      [x + TAP_TOLERANCE, y + TAP_TOLERANCE],
-    ],
-    { layers: ['points-circle'] },
-  );
-  if (!hits.length) return;
-  const nearest = hits
-    .map((f) => ({ f, d: map.project((f.geometry as Point).coordinates as [number, number]).dist(e.point) }))
-    .sort((a, b) => a.d - b.d)[0].f;
-  select(Number(nearest.properties.index), false);
+  const point = nearestPoint(e.point);
+  const line = point && point.d <= POINT_HIT ? undefined : nearestLine(e.point);
+  if (line && (!point || line.d < point.d)) selectLine(line.fid, false);
+  else if (point) select(point.index, false);
 });
-map.on('mouseenter', 'points-circle', () => !aligning && (map.getCanvas().style.cursor = 'pointer'));
-map.on('mouseleave', 'points-circle', () => !aligning && (map.getCanvas().style.cursor = ''));
+// Layers the cursor shows as tappable; the highlight is under the line itself.
+const TAPPABLE_LINES = LINE_LAYERS.filter((id) => id !== 'lines-selected');
+for (const id of ['points-circle', ...TAPPABLE_LINES]) {
+  map.on('mouseenter', id, () => !aligning && (map.getCanvas().style.cursor = 'pointer'));
+  map.on('mouseleave', id, () => !aligning && (map.getCanvas().style.cursor = ''));
+}
+
+function tapBox(at: maplibregl.Point): [[number, number], [number, number]] {
+  return [
+    [at.x - TAP_TOLERANCE, at.y - TAP_TOLERANCE],
+    [at.x + TAP_TOLERANCE, at.y + TAP_TOLERANCE],
+  ];
+}
+
+function nearestPoint(at: maplibregl.Point): { index: number; d: number } | undefined {
+  if (!map.getLayer('points-circle')) return undefined;
+  return map
+    .queryRenderedFeatures(tapBox(at), { layers: ['points-circle'] })
+    .map((f) => ({ index: Number(f.properties.index), d: map.project((f.geometry as Point).coordinates as [number, number]).dist(at) }))
+    .sort((a, b) => a.d - b.d)[0];
+}
+
+/** The line or polygon nearest a tap, by its distance on screen from the drawn line. */
+function nearestLine(at: maplibregl.Point): { fid: number; d: number } | undefined {
+  const layers = TAPPABLE_LINES.filter((id) => map.getLayer(id));
+  if (!linework || !layers.length) return undefined;
+  let best: { fid: number; d: number } | undefined;
+  for (const fid of new Set(map.queryRenderedFeatures(tapBox(at), { layers }).map((f) => Number(f.properties.fid)))) {
+    const g = linework.lines.features[fid]?.geometry;
+    if (!g) continue;
+    const px = (g.type === 'Polygon' ? g.coordinates[0] : g.coordinates).map((c) => map.project(c as [number, number]));
+    let d = Infinity;
+    for (let i = 1; i < px.length; i++) d = Math.min(d, segmentDistance(at, px[i - 1], px[i]));
+    // A tap inside a polygon picks it, unless its own edge or another line is nearer.
+    if (g.type === 'Polygon' && inside(at, px)) d = Math.min(d, TAP_TOLERANCE);
+    if (!best || d < best.d) best = { fid, d };
+  }
+  return best;
+}
+
+function segmentDistance(p: maplibregl.Point, a: maplibregl.Point, b: maplibregl.Point): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  const t = len2 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2)) : 0;
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+
+function inside(p: maplibregl.Point, ring: maplibregl.Point[]): boolean {
+  let odd = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[i];
+    const b = ring[j];
+    if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) odd = !odd;
+  }
+  return odd;
+}
 
 function toGeoJSON(): FeatureCollection {
   const color = colorFn();
@@ -347,6 +426,8 @@ function load(text: string, name: string, size: number, gridDef?: { input: strin
   loaded = { text, name, size, origin };
   jobs.setOpenFile({ doc, text, name, origin });
   selected = undefined;
+  selectedLine = undefined;
+  back = undefined;
   showingDetail = false;
   document.body.classList.add('loaded');
   $('#dropzone strong').textContent = 'Open another file';
@@ -385,7 +466,7 @@ function load(text: string, name: string, size: number, gridDef?: { input: strin
   $('#align-row').hidden = !doc.crs.nad83;
   alignPoints();
   setImageryOffset(readOffset(), false);
-  linework = buildLinework(doc.points, library);
+  linework = buildLinework(doc.points, library, jobUnit().metres);
   const remaining = doc.points.filter((p) => p.coords.lat === undefined && p.coords.north !== undefined).length;
   $('#projection').hidden = remaining === 0;
   $('#grid-count').textContent = String(doc.gridOnlyCount);
@@ -681,23 +762,50 @@ $('#points-table tbody').addEventListener('click', (e) => {
   if (row) select(Number(row.dataset.index), true);
 });
 
-function select(index: number, fly: boolean) {
+/** Show a point's properties. `from` is the line it was opened from, for the back button. */
+function select(index: number, fly: boolean, from?: { line: number }) {
   if (!doc) return;
   selected = index;
-  showingDetail = true;
+  selectedLine = undefined;
+  back = from;
+  showDetail();
   const p = doc.points[index];
+  if (fly && p.coords.mapLat !== undefined) map.flyTo({ center: [p.coords.mapLon!, p.coords.mapLat!], zoom: Math.max(map.getZoom(), 17) });
+}
+
+/** Show a line's properties. `from` is the point it was opened from, for the back button. */
+function selectLine(fid: number, fit: boolean, from?: { point: number }) {
+  const line = linework?.lines.features[fid];
+  if (!line) return;
+  selectedLine = fid;
+  selected = undefined;
+  back = from;
+  showDetail();
+  if (fit) {
+    const bounds = new maplibregl.LngLatBounds();
+    for (const c of line.geometry.type === 'Polygon' ? line.geometry.coordinates[0] : line.geometry.coordinates) bounds.extend(c as [number, number]);
+    map.fitBounds(bounds, { padding: isSheet() ? 40 : 80, maxZoom: Math.max(map.getZoom(), 20), duration: 600 });
+  }
+}
+
+function showDetail() {
+  showingDetail = true;
   showTab('points');
   setSelectedFilter();
   if (isSheet()) setSheet(false);
-  if (fly && p.coords.mapLat !== undefined) map.flyTo({ center: [p.coords.mapLon!, p.coords.mapLat!], zoom: Math.max(map.getZoom(), 17) });
   renderTable();
   renderDetail();
   // Bring the properties to the top of the panel.
   $('#point-detail').scrollIntoView({ block: 'start' });
 }
 
-/** Back to the list, keeping the point highlighted and the list where it was. */
-function showList() {
+/**
+ * Back to the line or point the panel was opened from, or else to the list,
+ * keeping the selection highlighted and the list where it was.
+ */
+function goBack() {
+  if (back && 'line' in back) return selectLine(back.line, false);
+  if (back && 'point' in back) return select(back.point, false);
   showingDetail = false;
   renderDetail();
   document.querySelector(`#points-table tr[data-index="${selected}"]`)?.scrollIntoView({ block: 'nearest' });
@@ -706,65 +814,142 @@ function showList() {
 document.addEventListener('keydown', (e) => {
   if (aligning && alignKey(e)) return;
   if (!showingDetail || (e.target as HTMLElement).closest('input, select, textarea')) return;
-  if (e.key === 'Escape') showList();
+  if (e.key === 'Escape') goBack();
   else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') step(1);
   else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') step(-1);
   else return;
   e.preventDefault();
 });
 
-/** Move to the next or previous point in the list. */
+/**
+ * Move to the next or previous line, or point: along the line the point was
+ * opened from, otherwise in the list.
+ */
 function step(by: 1 | -1) {
-  const at = listed.indexOf(selected ?? -1);
-  const next = listed[at + by];
-  if (next !== undefined) select(next, true);
+  if (selectedLine !== undefined) {
+    if (linework?.figures[selectedLine + by]) selectLine(selectedLine + by, true);
+    return;
+  }
+  const order = stepOrder();
+  const next = order[order.indexOf(selected ?? -1) + by];
+  const line = backLine();
+  if (next !== undefined) select(next, true, line === undefined ? undefined : { line });
+}
+
+function stepOrder(): number[] {
+  const line = linework?.figures[backLine() ?? -1];
+  return line ? line.nodes.map((n) => n.index) : listed;
 }
 
 function setSelectedFilter() {
   if (map.getLayer('points-selected')) map.setFilter('points-selected', ['==', ['get', 'index'], selected ?? -1]);
+  // A point opened from a line keeps the line highlighted.
+  lineMap.setSelected(selectedLine ?? backLine());
 }
 
 function renderDetail() {
   const el = $('#point-detail');
-  const p = showingDetail && selected !== undefined ? doc?.points[selected] : undefined;
-  el.hidden = !p;
-  $('#point-list').hidden = !!p;
-  if (!p) return;
+  const line = showingDetail && selectedLine !== undefined ? linework?.figures[selectedLine] : undefined;
+  const p = showingDetail && !line && selected !== undefined ? doc?.points[selected] : undefined;
+  el.hidden = !p && !line;
+  $('#point-list').hidden = !el.hidden;
+  if (line) renderLineDetail(el, line);
+  else if (p) renderPointDetail(el, p);
+  else return;
+  el.querySelector('.back')!.addEventListener('click', goBack);
+  // Tap an attribute's name to read the library's description of it.
+  el.querySelectorAll('tr.has-hint').forEach((tr) => tr.addEventListener('click', () => tr.classList.toggle('show-hint')));
+  el.querySelectorAll<HTMLButtonElement>('[data-step]').forEach((b) => b.addEventListener('click', () => step(Number(b.dataset.step) as 1 | -1)));
+  // Rows that open a line's points, or the lines through a point.
+  el.querySelectorAll<HTMLElement>('tr[data-point]').forEach((tr) =>
+    tr.addEventListener('click', () => select(Number(tr.dataset.point), true, line && { line: line.fid })),
+  );
+  el.querySelectorAll<HTMLElement>('tr[data-line]').forEach((tr) =>
+    tr.addEventListener('click', () => selectLine(Number(tr.dataset.line), true, p && { point: p.index })),
+  );
+}
+
+function renderPointDetail(el: HTMLElement, p: JxlPoint) {
   const unit = jobUnit();
-  const at = listed.indexOf(p.index);
+  const order = stepOrder();
+  const at = order.indexOf(p.index);
+  const from = linework?.figures[backLine() ?? -1];
   const groups: PropGroup[] = [
     coordinateGroup(p),
     ...featureGroups(p, library),
+    linesAtPoint(p.index, linework, doc!.points, unit),
     pointGroup(p),
     ...p.observation,
   ];
   el.innerHTML = `
-    <div class="detail-head">
-      <div class="detail-nav">
-        <button class="back" title="Back to the point list (Esc)">‹ Points</button>
-        <span class="muted">${at >= 0 ? `${at + 1} of ${listed.length}` : ''}</span>
-        <span class="stepper">
-          <button data-step="-1" title="Previous point (↑)" ${at <= 0 ? 'disabled' : ''}>↑</button>
-          <button data-step="1" title="Next point (↓)" ${at < 0 || at >= listed.length - 1 ? 'disabled' : ''}>↓</button>
-        </span>
-      </div>
-      <h2><span class="name">${esc(p.name || '(unnamed)')}</span>${p.code ? ` <span class="code">${esc(p.code)}</span>` : ''}</h2>
-    </div>
+    ${detailHead({
+      back: from ? `‹ ${from.code}` : '‹ Points',
+      backTitle: from ? `Back to ${from.code}` : 'Back to the point list',
+      position: at >= 0 ? `${at + 1} of ${order.length}${from ? ` on ${from.code}` : ''}` : '',
+      prev: at > 0,
+      next: at >= 0 && at < order.length - 1,
+      noun: 'point',
+      heading: `<span class="name">${esc(p.name || '(unnamed)')}</span>${p.code ? ` <span class="code">${esc(p.code)}</span>` : ''}`,
+    })}
     ${p.deleted ? '<p class="warn">This point is marked deleted in the field book.</p>' : ''}
-    ${groups
-      .filter((g) => g.props.length)
-      .map(
-        (g) => `<details class="group" open><summary>${esc(g.title)}</summary><table class="kv">${g.props
-          .map((prop) => `<tr${prop.hint ? ' class="has-hint"' : ''}><th>${prop.hint ? `<span class="label">${esc(prop.label)}</span>` : esc(prop.label)}${prop.hint ? `<span class="hint">${esc(prop.hint)}</span>` : ''}</th><td>${prop.kind === 'html' ? String(prop.value) : esc(formatProp(prop, unit))}</td></tr>`)
-          .join('')}</table></details>`,
-      )
-      .join('')}
+    ${groupsHtml(groups, unit)}
     <details class="group"><summary>All attributes (${Object.keys(p.attributes).length})</summary>${table('', Object.entries(p.attributes))}</details>
   `;
-  el.querySelector('.back')!.addEventListener('click', showList);
-  // Tap an attribute's name to read the library's description of it.
-  el.querySelectorAll('tr.has-hint').forEach((tr) => tr.addEventListener('click', () => tr.classList.toggle('show-hint')));
-  el.querySelectorAll<HTMLButtonElement>('[data-step]').forEach((b) => b.addEventListener('click', () => step(Number(b.dataset.step) as 1 | -1)));
+}
+
+function renderLineDetail(el: HTMLElement, line: LineFigure) {
+  const unit = jobUnit();
+  const props = linework!.lines.features[line.fid].properties;
+  // The colour it's drawn in on this basemap.
+  const color = lineMap.visibleColor(props.color ?? codeColorFn()(props.code));
+  const from = back && 'point' in back ? doc?.points[back.point] : undefined;
+  const count = linework!.figures.length;
+  el.innerHTML = `
+    ${detailHead({
+      back: from ? `‹ ${from.name}` : '‹ Points',
+      backTitle: from ? `Back to point ${from.name}` : 'Back to the point list',
+      position: `Line ${line.fid + 1} of ${count}`,
+      prev: line.fid > 0,
+      next: line.fid < count - 1,
+      noun: 'line',
+      heading: `<span class="line-swatch" style="background:${esc(color)}"></span><span class="name">${esc(line.code)}</span>${props.description ? ` <span class="desc">${esc(props.description)}</span>` : ''}`,
+    })}
+    ${groupsHtml(lineGroups(line, linework!, doc!.points, library, unit), unit)}
+  `;
+}
+
+/** The panel's sticky top: back, position and stepping, then the heading (HTML). */
+function detailHead(h: { back: string; backTitle: string; position: string; prev: boolean; next: boolean; noun: string; heading: string }): string {
+  return `<div class="detail-head">
+      <div class="detail-nav">
+        <button class="back" title="${esc(h.backTitle)} (Esc)">${esc(h.back)}</button>
+        <span class="muted">${esc(h.position)}</span>
+        <span class="stepper">
+          <button data-step="-1" title="Previous ${h.noun} (↑)" ${h.prev ? '' : 'disabled'}>↑</button>
+          <button data-step="1" title="Next ${h.noun} (↓)" ${h.next ? '' : 'disabled'}>↓</button>
+        </span>
+      </div>
+      <h2>${h.heading}</h2>
+    </div>`;
+}
+
+function groupsHtml(groups: PropGroup[], unit: Unit): string {
+  return groups
+    .filter((g) => g.props.length)
+    .map((g) => `<details class="group" open><summary>${esc(g.title)}</summary><table class="kv">${g.props.map((prop) => propRow(prop, unit)).join('')}</table></details>`)
+    .join('');
+}
+
+function propRow(prop: Prop, unit: Unit): string {
+  const classes = [prop.hint && 'has-hint', prop.link && 'link-row'].filter(Boolean).join(' ');
+  const data = !prop.link ? '' : 'point' in prop.link ? ` data-point="${prop.link.point}"` : ` data-line="${prop.link.line}"`;
+  const label = prop.link
+    ? `<button class="row-link">${esc(prop.label)}</button>`
+    : prop.hint
+      ? `<span class="label">${esc(prop.label)}</span><span class="hint">${esc(prop.hint)}</span>`
+      : esc(prop.label);
+  const value = prop.kind === 'html' ? String(prop.value) : esc(formatProp(prop, unit));
+  return `<tr${classes ? ` class="${classes}"` : ''}${data}><th>${label}</th><td>${value}</td></tr>`;
 }
 
 function pointGroup(p: JxlPoint): PropGroup {
