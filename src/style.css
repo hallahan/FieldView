@@ -145,7 +145,29 @@ tr.link-row td::after { content: ' ›'; color: var(--link); font-weight: 600; }
 .warn { color: #b45309; margin: 8px 0 0; }
 details { margin-top: 12px; }
 summary { cursor: pointer; color: var(--muted); }
-#basemap-toggle { position: absolute; top: 10px; left: 10px; display: flex; box-shadow: 0 1px 4px rgba(0,0,0,.3); border-radius: 6px; overflow: hidden; }
+#map-tools { position: absolute; top: 10px; left: 10px; display: flex; gap: 8px; }
+#basemap-toggle { display: flex; box-shadow: 0 1px 4px rgba(0,0,0,.3); border-radius: 6px; overflow: hidden; }
+#align-imagery {
+  position: relative; padding: 6px 12px; border: none; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,.3);
+  background: #fffbf0; color: #1e1b4b;
+}
+#align-imagery.active { background: var(--accent); color: #fff; }
+/* A dot when this job's imagery has been moved. */
+#align-imagery.moved::after {
+  content: ''; position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+}
+#align-imagery.active.moved::after { background: #fff; }
+.maplibregl-canvas-container.aligning { touch-action: none !important; }
+#align-bar {
+  position: absolute; left: 10px; right: 60px; top: 52px; max-width: 460px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+  padding: 10px 12px; border-radius: 8px; background: var(--bg); color: var(--fg); box-shadow: 0 2px 8px rgba(0,0,0,.35);
+}
+#align-bar p { margin: 0; flex: 1 1 200px; }
+#align-offset { display: block; font: 13px var(--font-sans); }
+.align-actions { display: flex; gap: 8px; margin-left: auto; }
+.align-actions button { padding: 6px 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--fg); font: inherit; }
+.align-actions button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.align-actions button:disabled { opacity: .5; }
 #basemap-toggle button { padding: 6px 12px; border: none; background: #fffbf0; color: #1e1b4b; }
 #basemap-toggle button.active { background: #404d45; color: #fff; }
 #drop-overlay {
@@ -228,6 +250,9 @@ button.github { display: inline-flex; align-items: center; justify-content: cent
   #points-table td { padding: 11px 6px; }
   table.kv th, table.kv td { padding: 7px 6px; }
   #basemap-toggle button { padding: 10px 14px; }
+  #align-imagery { padding: 10px 14px; }
+  #align-bar { top: 62px; }
+  .align-actions button { padding: 10px 16px; }
   #dropzone { padding: 22px; }
   .fxl-actions label.link, .fxl-actions button.link { padding: 6px 0; }
   .drop-hint { display: none; }

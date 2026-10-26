@@ -64,6 +64,8 @@ Basemap imagery is referenced to WGS84, which tracks ITRF, while NAD83(2011) is 
 
 This does not model deformation within the plate, which HTDP covers. In coastal California that is a few centimetres a year, so epoch 2017.50 and 2025.00 coordinates of the same mark get the same shift, and a few decimetres of difference remains. That is well inside the accuracy of typical web imagery.
 
+Imagery itself is often a metre or more out. On the satellite basemap, **Align** lets you drag the imagery (with a finger or the mouse, or nudge it with the arrow keys) until it sits under the survey. The survey never moves: the imagery tiles are redrawn shifted by the offset. The offset is kept on the device for each job, by its job name, and **Reset** puts the imagery back.
+
 ### Site calibration
 
 Grid coordinates in a calibrated job include Trimble's horizontal plane adjustment (`HorizontalAdjustmentRecord`). OpenFieldView removes it before un-projecting grid-only points, which matches Trimble Access to the millimetre. The vertical adjustment (geoid plus inclined plane) doesn't affect map position and isn't applied. For other zones, enter an EPSG code (looked up on epsg.io) or a proj4 string in the sidebar.
