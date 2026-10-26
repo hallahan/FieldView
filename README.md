@@ -2,7 +2,7 @@
 
 A free and open source way to get field data off your data collector, onto a map, and into the cloud, without paying for a SaaS subscription. It starts with Trimble JobXML (`.jxl`) and will grow to cover other data collector formats.
 
-Try it at https://hallahan.github.io/OpenFieldView/.
+Try it at https://openfieldview.org/.
 
 OpenFieldView is a fully client-side web app. Open a `.jxl` file and you get:
 
