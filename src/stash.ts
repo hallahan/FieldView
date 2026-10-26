@@ -2,7 +2,8 @@
 // reloads the app. IndexedDB because a job can be bigger than sessionStorage
 // allows.
 
-const DB = 'openfieldview';
+// Its own database, so it never needs a version bump of the FXL library store's.
+const DB = 'openfieldview-stash';
 const STORE = 'stash';
 const ID = 'before-sign-in';
 

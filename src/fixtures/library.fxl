@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<!--A small feature library in the Trimble Business Center schema, for tests.-->
+<FeatureCodingDefinitions CreationDate="2026-10-26T00:00:00" SchemaVersion="9" Author="OpenFieldView tests" xmlns="http://trimble.com/schema/fxl">
+  <LineStyleDefinitions Version="3.0" xmlns="http://trimble.com/schema/linestyle">
+    <LineStyleDefinition Name="Dashed 3-1">
+      <Units Reference="Paper" Length="Metric" />
+      <PatternType>PartToJoin</PatternType>
+      <Pattern TotalLength="2.000000" EndLength="1.500000">
+        <Line Color="Empty" LineWeight="1">
+          <Location X="0.000000" Y="0.000000" />
+          <Location X="1.500000" Y="0.000000" />
+        </Line>
+      </Pattern>
+    </LineStyleDefinition>
+    <LineStyleDefinition Name="Notched">
+      <Units Reference="Paper" Length="Metric" />
+      <PatternType>PartToJoin</PatternType>
+      <Pattern TotalLength="10.000000" EndLength="1.118034">
+        <Line Color="Empty" LineWeight="1">
+          <Location X="4.500000" Y="0.000000" />
+          <Location X="5.000000" Y="-1.000000" />
+        </Line>
+      </Pattern>
+      <Pattern TotalLength="10.000000" EndLength="1.118034">
+        <Line Color="Empty" LineWeight="1">
+          <Location X="5.000000" Y="-1.000000" />
+          <Location X="5.500000" Y="0.000000" />
+        </Line>
+      </Pattern>
+      <Pattern TotalLength="10.000000" EndLength="4.500000">
+        <Line Color="Empty" LineWeight="1">
+          <Location X="5.500000" Y="0.000000" />
+          <Location X="10.000000" Y="0.000000" />
+        </Line>
+      </Pattern>
+      <Pattern TotalLength="10.000000" EndLength="4.500000">
+        <Line Color="Empty" LineWeight="1">
+          <Location X="0.000000" Y="0.000000" />
+          <Location X="4.500000" Y="0.000000" />
+        </Line>
+      </Pattern>
+    </LineStyleDefinition>
+    <LineStyleDefinition Name="Fence">
+      <Units Reference="Paper" Length="Metric" />
+      <PatternType>PartToJoin</PatternType>
+      <Pattern TotalLength="5.000000" EndLength="5.000000">
+        <Line Color="Empty" LineWeight="1">
+          <Location X="0.000000" Y="0.000000" />
+          <Location X="5.000000" Y="0.000000" />
+        </Line>
+      </Pattern>
+      <Pattern TotalLength="5.000000" EndLength="1.250000">
+        <Line Color="Empty" LineWeight="1">
+          <Location X="2.250000" Y="-0.500000" />
+          <Location X="3.000000" Y="0.500000" />
+        </Line>
+      </Pattern>
+      <Pattern TotalLength="5.000000" EndLength="0.500000">
+        <Text Bold="false" Color="Empty" Italic="false" TypeFace="Courier New" UnderLine="false" CurveText="false">
+          <Location X="3.500000" Y="0.100000" />
+          <Height>0.600000</Height>
+          <Text>F</Text>
+          <Orientation Type="Relative" Angle="0.000000" />
+        </Text>
+      </Pattern>
+    </LineStyleDefinition>
+    <LineStyleDefinition Name="Solid">
+      <Units Reference="Paper" Length="Metric" />
+      <PatternType>Default</PatternType>
+      <Pattern TotalLength="10000.000000" EndLength="0.000000">
+        <Line Color="Empty" LineWeight="1">
+          <Location X="0.000000" Y="0.000000" />
+          <Location X="10000.000000" Y="0.000000" />
+        </Line>
+      </Pattern>
+    </LineStyleDefinition>
+  </LineStyleDefinitions>
+  <SymbolDefinitions Version="3.0" xmlns="http://trimble.com/schema/symbol">
+    <SymbolDefinition Name="Circle">
+      <Units Reference="Paper" Length="Metric" />
+      <Component Number="1" Name="">
+        <Arc Color="Empty">
+          <Location X="0.000000" Y="0.000000" />
+          <Radius>1.000000</Radius>
+          <StartAngle>0.000000</StartAngle>
+          <DeltaAngle>360.000000</DeltaAngle>
+        </Arc>
+      </Component>
+    </SymbolDefinition>
+  </SymbolDefinitions>
+  <LayerDefinitions>
+    <LayerDefinition>
+      <Name>Roadside</Name>
+      <Color>FF00FF00</Color>
+      <LineStyleName>Solid</LineStyleName>
+      <LineWeight>0</LineWeight>
+    </LayerDefinition>
+    <LayerDefinition>
+      <Name>Vegetation</Name>
+      <Color>FF008000</Color>
+      <LineStyleName>Solid</LineStyleName>
+      <LineWeight>0</LineWeight>
+    </LayerDefinition>
+  </LayerDefinitions>
+  <ControlCodeDefinitions>
+    <ControlCodeDefinition Type="Start" Description="begin line" Code="BL" />
+    <ControlCodeDefinition Type="End" Description="end line" Code="EL" />
+    <ControlCodeDefinition Type="StartCurve" Description="begin smooth curve" Code="BC" />
+    <ControlCodeDefinition Type="EndCurve" Description="end smooth curve" Code="EC" />
+    <ControlCodeDefinition Type="Close" Description="close line" Code="CL" />
+    <ControlCodeDefinition Type="JoinToPoint" Description="join to point" Code="JP" />
+    <ControlCodeDefinition Type="StartRectangle" Description="Rectangle 3 point shots" Code="R3" />
+    <ControlCodeDefinition Type="StartCircleEdge" Description="3 point circle" Code="C3" />
+    <ControlCodeDefinition Type="StartCircleCenter" Description="Circle with Radius" Code="C2" />
+    <ControlCodeDefinition Type="Teleport" Description="not a real type" Code="TP" />
+  </ControlCodeDefinitions>
+  <FeatureDefinitions>
+    <LineFeatureDefinition Code="PCC" Name="Concrete_Edge" Category="Roadbed" Color="FFFFFFFF" Layer="Roadbed" FieldLineStyle="Solid" LineStyleName="Dashed 3-1" LineStyleScale="2.35">
+      <Attributes>
+        <ListAttribute Name="DTM_Type" Description="Identifies the type of surface" EntryMethod="Required" DefaultItemIndex="0">
+          <ListItems>
+            <Item>Ground</Item>
+            <Item>None</Item>
+          </ListItems>
+        </ListAttribute>
+        <StringAttribute Name="Desc_1" Description="Description of the feature" EntryMethod="Optional" MaximumLength="100" />
+        <ListAttribute Name="Feature" Description="General feature name" EntryMethod="OfficeUseOnly" DefaultItemIndex="0">
+          <ListItems>
+            <Item>Concrete edge</Item>
+          </ListItems>
+        </ListAttribute>
+      </Attributes>
+    </LineFeatureDefinition>
+    <LineFeatureDefinition Code="EGL" Name="Existing_Ground_Line" Category="Roadside" Color="FE000000" Layer="Roadside" FieldLineStyle="Dashed" LineStyleName="By Layer" LineStyleScale="1" />
+    <LineFeatureDefinition Code="FENCL" Name="Fence_Line" Category="Roadside" Color="FFA52A2A" Layer="Roadside" FieldLineStyle="Solid" LineStyleName="Fence" LineStyleScale="3" />
+    <LineFeatureDefinition Code="GUT" Name="Gutter" Category="Roads" Color="FFFFFFFF" Layer="Roadside" FieldLineStyle="Solid" LineStyleName="Solid" LineStyleScale="1">
+      <Lines>
+        <Line>
+          <HorizontalOffset>
+            <FixedValue>-0.5</FixedValue>
+          </HorizontalOffset>
+          <Name>Back of Curb</Name>
+          <Color>FE000000</Color>
+          <LineStyleName>By Layer</LineStyleName>
+        </Line>
+      </Lines>
+    </LineFeatureDefinition>
+    <PolygonFeatureDefinition Code="BLDG" Name="Building" Category="Structures" Layer="Structures" FillColor="FFA52A2A" FillTransparency="50" FieldBorderLineStyle="Solid" BorderColor="FFA52A2A" BorderLineStyleName="Solid" BorderLineStyleScale="1" />
+    <PointFeatureDefinition Code="TREE" Name="Tree" Category="Vegetation" Color="FE000000" Layer="Vegetation">
+      <Attributes>
+        <DoubleAttribute Name="Diameter" Description="Diameter of the feature" EntryMethod="Required" NumberOfDecimals="2" />
+      </Attributes>
+      <Symbols>
+        <Symbol>
+          <Name>Tree</Name>
+          <Color>FE000000</Color>
+          <SymbolName>Circle</SymbolName>
+        </Symbol>
+      </Symbols>
+    </PointFeatureDefinition>
+  </FeatureDefinitions>
+</FeatureCodingDefinitions>
