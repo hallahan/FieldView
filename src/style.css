@@ -48,7 +48,9 @@ html, body { margin: 0; height: 100%; background: var(--bg); overscroll-behavior
 }
 main { flex: 1; position: relative; }
 #map { position: absolute; inset: 0; }
-h1 { margin: 0; font-size: 24px; font-weight: 600; line-height: 1.15; color: var(--on-sage); }
+h1 { margin: 0; font-size: 24px; font-weight: 600; line-height: 1.15; color: var(--on-sage); display: flex; align-items: center; gap: .3em; }
+/* Drawn, not an emoji: Unicode has no binoculars, and the controller has few emoji fonts. */
+h1 .logo { width: 1.25em; height: 1.25em; flex-shrink: 0; }
 h2 { margin: 0; font-size: 18px; font-weight: 600; }
 h3 { margin: 16px 0 6px; font: 600 12px var(--font-sans); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .sub { margin: 4px 0 0; color: var(--on-sage); opacity: .85; }
