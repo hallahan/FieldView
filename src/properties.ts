@@ -12,6 +12,8 @@ export interface Prop {
   kind?: 'length' | 'angle' | 'html';
   /** What the field means, such as the FXL attribute description. */
   hint?: string;
+  /** Opens a point (its index) or a line (its fid) when the row is tapped. */
+  link?: { point: number } | { line: number };
 }
 
 export interface PropGroup {
@@ -223,8 +225,18 @@ export interface Unit {
 export function formatProp(p: Prop, unit: Unit): string {
   if (typeof p.value === 'string') return p.value;
   if (p.kind === 'angle') return dms(p.value);
-  if (p.kind === 'length') return `${(p.value / unit.metres).toFixed(3)} ${unit.label}`;
+  if (p.kind === 'length') return formatLength(p.value, unit);
   return String(p.value);
+}
+
+export function formatLength(metres: number, unit: Unit): string {
+  return `${(metres / unit.metres).toFixed(3)} ${unit.label}`;
+}
+
+/** Square metres in the job's units: m² or square feet. */
+export function formatArea(m2: number, unit: Unit): string {
+  const value = (m2 / unit.metres ** 2).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${value} ${unit.label === 'm' ? 'm²' : 'sq ft'}`;
 }
 
 /** 284.80258182 → 284°48'09.29" */

@@ -7,7 +7,7 @@ Try it at https://hallahan.github.io/OpenFieldView/.
 OpenFieldView is a fully client-side web app. Open a `.jxl` file and you get:
 
 - its points on a MapLibre map (streets or satellite basemap), coloured by code
-- linework built from the points' feature codes, styled from a Trimble feature library (`.fxl`) if you add one
+- linework built from the points' feature codes, styled from a Trimble feature library (`.fxl`) if you add one, with each line's properties a tap away
 - a searchable point list with each point's position, field-captured feature attributes, and every raw attribute in the file
 - metadata about the job: job properties, coordinate system, units, record counts, time span, and bounds
 
@@ -15,7 +15,7 @@ Opening or dropping a file only shows it; it's parsed in the browser. It leaves 
 
 ## Linework from feature codes
 
-Points with the same line code are joined in the order they were measured, the way Trimble Access and Business Center do it. Control codes after a feature code shape the line: in Caltrans coding, `PCC1 BL` begins a line, `EL` ends it, `BC`/`EC` bracket a smooth curve, `CL` closes it, `JP 1001` joins to point 1001, `R3` draws a rectangle from three shots, `C3` a circle through three points and `C2 1.5` a circle of radius 1.5. A point can carry several codes (`BARB EL BARB1 BL`), and numbered strings (`PCC1`, `PCC2`) are separate lines of the same feature.
+Points with the same line code are joined in the order they were measured, the way Trimble Access and Business Center do it. Control codes after a feature code shape the line: in Caltrans coding, `PCC1 BL` begins a line, `EL` ends it, `BC`/`EC` bracket a smooth curve, `CL` closes it, `JP 1001` joins to point 1001, `R3` draws a rectangle from three shots, `C3` a circle through three points and `C2 1.5` a circle of radius 1.5 (in the job's units). A point can carry several codes (`BARB EL BARB1 BL`), and numbered strings (`PCC1`, `PCC2`) are separate lines of the same feature.
 
 Without a feature library the Caltrans control codes are used, and any code that ever carries one is treated as a line. Add a Trimble feature library (`.fxl`, as exported from Business Center's Feature Definition Manager) under **Feature library** to use its own control codes and draw each feature as the library defines it:
 
@@ -24,6 +24,14 @@ Without a feature library the Caltrans control codes are used, and any code that
 - point symbols, polygon fills, and parallel offset lines such as a curb's back
 
 Libraries are kept in the browser (IndexedDB), so each one is added once per device. When a job names the library it was coded with (`FeatureCodingRecord`), that library is picked automatically if it's on the device.
+
+Tap a line or polygon to see its properties, as for a point:
+
+- its shape and size: 2D and 3D length (or perimeter), area, radius or sides, and elevation range, measured on the job's grid and following curves
+- the feature's definition from the library, and the attributes captured at its points. Attributes are recorded at every shot, so where a value changes along the line (a guardrail going from Thrie beam to MBGR, say) each value is listed with the points it covers
+- its points, each of which opens that point; from a point, ↑/↓ then step along the line
+
+A point's properties list the lines through it in the same way. A tap within a few pixels of a point picks the point; further along a line, the line.
 
 ## Uploading jobs to GitHub
 

@@ -16,10 +16,13 @@ import {
   type ControlAction,
   type FeatureDef,
   type FeatureLibrary,
+  type OffsetLine,
 } from './fxl';
 import type { JxlPoint } from './jxl';
 
 export interface LineProps {
+  /** Index into Linework.figures (and lines.features), for selecting it. */
+  fid: number;
   /** The code as coded in the field, string number included (PCC1). */
   code: string;
   /** The library code it matched (PCC), if any. */
@@ -34,8 +37,6 @@ export interface LineProps {
   /** Library line style name, and its scale. */
   lineStyle: string;
   scale: number;
-  /** Point names along the figure, for display. */
-  points: string;
 }
 
 export interface CodeToken {
@@ -44,8 +45,42 @@ export interface CodeToken {
   controls: { code: string; action: ControlAction; value?: string; description: string }[];
 }
 
+/** How a figure's outline is built from its points. */
+export type FigureShape = 'line' | 'join' | 'rectangle' | 'circleEdge' | 'circleCenter';
+
+/** A point along a figure, in a local plane (metres east and north). */
+export interface FigureNode {
+  /** The point's index in the job. */
+  index: number;
+  name: string;
+  x: number;
+  y: number;
+  curveStart?: 'arc' | 'tangentArc' | 'smooth';
+  curveEnd?: boolean;
+}
+
+/** A drawn line or polygon, and how it was built from the job's points. */
+export interface LineFigure {
+  /** Its index in Linework.figures and in lines.features. */
+  fid: number;
+  code: string;
+  def?: FeatureDef;
+  shape: FigureShape;
+  /** Drawn as a polygon (a library polygon feature) rather than a line. */
+  polygon: boolean;
+  /** Closed by a close code; rectangles and circles always are. */
+  closed: boolean;
+  nodes: FigureNode[];
+  /** Rectangle width or circle radius keyed after the control code, in metres. */
+  value?: number;
+  /** A line the library draws alongside another figure, such as the back of a curb. */
+  offset?: { of: number; line: OffsetLine };
+}
+
 export interface Linework {
   lines: FeatureCollection<LineString | Polygon, LineProps>;
+  /** How each feature in `lines` was built, by fid. */
+  figures: LineFigure[];
   /** Line codes with no library definition, so drawn with default styling. */
   undefinedCodes: string[];
   /** Indexes of the points that are vertices of the linework. */
@@ -83,28 +118,14 @@ function isNumber(s: string) {
   return /^[-+]?(\d+\.?\d*|\.\d+)$/.test(s);
 }
 
-interface Node {
-  x: number;
-  y: number;
-  name: string;
-  curveStart?: 'arc' | 'tangentArc' | 'smooth';
-  curveEnd?: boolean;
-}
+/** A figure still being collected. */
+type Draft = Omit<LineFigure, 'fid' | 'polygon'>;
 
-interface Figure {
-  code: string;
-  def?: FeatureDef;
-  nodes: Node[];
-  closed: boolean;
-}
-
-interface Shape {
-  kind: 'rectangle' | 'circleEdge' | 'circleCenter';
-  figure: Figure;
-  value?: number;
-}
-
-export function buildLinework(points: JxlPoint[], library?: FeatureLibrary): Linework {
+/**
+ * Join the job's points into lines. `unit` is metres per job distance unit,
+ * for the sizes keyed after rectangle and circle codes.
+ */
+export function buildLinework(points: JxlPoint[], library?: FeatureLibrary, unit = 1): Linework {
   const located = points.filter((p) => !p.deleted && p.coords.mapLat !== undefined && p.coords.mapLon !== undefined);
   const plane = localPlane(located);
   const parsed = located.map((p) => ({ p, tokens: parseCode(p.code, library) }));
@@ -114,33 +135,36 @@ export function buildLinework(points: JxlPoint[], library?: FeatureLibrary): Lin
   for (const { tokens } of parsed) for (const t of tokens) if (t.controls.length) inferredLines.add(t.code);
   const isLine = (t: CodeToken) => (t.def ? t.def.kind !== 'point' : inferredLines.has(t.code));
 
-  const open = new Map<string, Figure>();
-  const shapes = new Map<string, Shape>();
-  const byName = new Map<string, Node>();
+  const open = new Map<string, Draft>();
+  const shapes = new Map<string, Draft>();
+  const byName = new Map<string, FigureNode>();
+  const figures: LineFigure[] = [];
   const features: Feature<LineString | Polygon, LineProps>[] = [];
   const undefinedCodes = new Set<string>();
   const onLines = new Set<number>();
 
-  const emit = (f: Figure, coords: [number, number][], forcePolygon = false) => {
+  const emit = (draft: Draft) => {
+    const coords = figureOutline(draft);
     if (coords.length < 2) return;
-    const polygon = forcePolygon || (f.def?.kind === 'polygon' && coords.length >= 3);
+    const f: LineFigure = { ...draft, fid: figures.length, polygon: draft.def?.kind === 'polygon' && coords.length >= 3 };
+    figures.push(f);
     const ring = coords.map(([x, y]) => plane.toLonLat(x, y));
     const style = f.def?.style;
     const props: LineProps = {
+      fid: f.fid,
       code: f.code,
       feature: f.def?.code ?? '',
       description: f.def?.description ?? '',
-      kind: polygon ? 'polygon' : 'line',
+      kind: f.polygon ? 'polygon' : 'line',
       lineStyle: style?.lineStyle ?? '',
       scale: style?.lineStyleScale ?? 1,
-      points: f.nodes.map((n) => n.name).join(', '),
     };
     if (style?.color) props.color = style.color;
-    if (polygon && style?.fill) {
+    if (f.polygon && style?.fill) {
       props.fill = style.fill;
       props.fillOpacity = style.fillOpacity ?? 0.5;
     }
-    if (polygon) {
+    if (f.polygon) {
       const closed = sameXY(coords[0], coords[coords.length - 1]) ? ring : [...ring, ring[0]];
       features.push({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [closed] }, properties: props });
     } else {
@@ -149,8 +173,10 @@ export function buildLinework(points: JxlPoint[], library?: FeatureLibrary): Lin
     // Parallel lines the library adds, such as the back of a curb.
     for (const o of f.def?.offsets ?? []) {
       if (!o.offset) continue;
+      const parallel: LineFigure = { ...f, fid: figures.length, polygon: false, offset: { of: f.fid, line: o } };
+      figures.push(parallel);
       const line = offsetPolyline(coords, o.offset).map(([x, y]) => plane.toLonLat(x, y));
-      const oprops: LineProps = { ...props, kind: 'line', description: o.name || props.description, lineStyle: o.lineStyle ?? '' };
+      const oprops: LineProps = { ...props, fid: parallel.fid, kind: 'line', description: o.name || props.description, lineStyle: o.lineStyle ?? '' };
       delete oprops.fill;
       delete oprops.fillOpacity;
       if (o.color) oprops.color = o.color;
@@ -162,22 +188,13 @@ export function buildLinework(points: JxlPoint[], library?: FeatureLibrary): Lin
     const f = open.get(code);
     if (!f) return;
     open.delete(code);
-    const coords = figureCoords(f.nodes);
-    if (f.closed && f.nodes.length >= 3 && !sameXY(coords[0], coords[coords.length - 1])) coords.push(coords[0]);
-    emit(f, coords);
+    emit(f);
   };
 
-  const finishShape = (s: Shape, final = false) => {
-    const pts = s.figure.nodes.map((n) => [n.x, n.y] as [number, number]);
-    let ring: [number, number][] | undefined;
-    if (s.kind === 'rectangle') ring = rectangle(pts, s.value);
-    else if (s.kind === 'circleEdge' && pts.length >= 3) ring = circleThrough(pts[0], pts[1], pts[2]);
-    else if (s.kind === 'circleCenter') {
-      const r = s.value ?? (pts.length >= 2 ? Math.hypot(pts[1][0] - pts[0][0], pts[1][1] - pts[0][1]) : 0);
-      if (r > 0) ring = circle(pts[0], r);
-    }
-    if (ring) emit(s.figure, ring, s.figure.def?.kind === 'polygon');
-    else if (final) emit(s.figure, pts);
+  // A shape with too few points, or in a line, is drawn through the points it has.
+  const finishShape = (s: Draft, final = false) => {
+    if (shapeRing(s)) emit(s);
+    else if (final) emit({ ...s, shape: 'line', closed: false });
   };
 
   for (const { p, tokens } of parsed) {
@@ -186,15 +203,15 @@ export function buildLinework(points: JxlPoint[], library?: FeatureLibrary): Lin
       if (!isLine(t)) continue;
       if (!t.def) undefinedCodes.add(t.code);
       onLines.add(p.index);
-      const node: Node = { x, y, name: p.name };
+      const node: FigureNode = { index: p.index, name: p.name, x, y };
       const actions = new Set(t.controls.map((c) => c.action));
       const value = (a: ControlAction) => t.controls.find((c) => c.action === a)?.value;
 
       const shape = shapes.get(t.code);
       if (shape) {
-        shape.figure.nodes.push(node);
-        const need = shape.kind === 'circleCenter' ? 2 : shape.kind === 'rectangle' && shape.value !== undefined ? 2 : 3;
-        if (shape.figure.nodes.length >= need) {
+        shape.nodes.push(node);
+        const need = shape.shape === 'circleCenter' ? 2 : shape.shape === 'rectangle' && shape.value !== undefined ? 2 : 3;
+        if (shape.nodes.length >= need) {
           finishShape(shape);
           shapes.delete(t.code);
         }
@@ -205,8 +222,8 @@ export function buildLinework(points: JxlPoint[], library?: FeatureLibrary): Lin
       if (shapeKind) {
         flush(t.code);
         const v = Number(value(shapeKind));
-        const s: Shape = { kind: shapeKind, figure: { code: t.code, def: t.def, nodes: [node], closed: true } };
-        if (Number.isFinite(v) && v > 0) s.value = v;
+        const s: Draft = { code: t.code, def: t.def, shape: shapeKind, nodes: [node], closed: true };
+        if (Number.isFinite(v) && v > 0) s.value = v * unit;
         if (shapeKind === 'circleCenter' && s.value !== undefined) finishShape(s);
         else shapes.set(t.code, s);
         continue;
@@ -215,7 +232,7 @@ export function buildLinework(points: JxlPoint[], library?: FeatureLibrary): Lin
       if (actions.has('start')) flush(t.code);
       if (!actions.has('noJoin')) {
         let f = open.get(t.code);
-        if (!f) open.set(t.code, (f = { code: t.code, def: t.def, nodes: [], closed: false }));
+        if (!f) open.set(t.code, (f = { code: t.code, def: t.def, shape: 'line', nodes: [], closed: false }));
         if (actions.has('arcStart')) node.curveStart = 'arc';
         if (actions.has('tangentArcStart')) node.curveStart = 'tangentArc';
         if (actions.has('curveStart')) node.curveStart = 'smooth';
@@ -224,7 +241,7 @@ export function buildLinework(points: JxlPoint[], library?: FeatureLibrary): Lin
       }
       const target = value('join');
       const to = target !== undefined ? byName.get(target) : undefined;
-      if (to) emit({ code: t.code, def: t.def, nodes: [node, to], closed: false }, [[x, y], [to.x, to.y]]);
+      if (to) emit({ code: t.code, def: t.def, shape: 'join', nodes: [node, to], closed: false });
       if (actions.has('close')) {
         const f = open.get(t.code);
         if (f) f.closed = true;
@@ -232,18 +249,44 @@ export function buildLinework(points: JxlPoint[], library?: FeatureLibrary): Lin
       }
       if (actions.has('end')) flush(t.code);
     }
-    byName.set(p.name, { x, y, name: p.name });
+    byName.set(p.name, { index: p.index, name: p.name, x, y });
   }
   for (const code of [...open.keys()]) flush(code);
   for (const s of shapes.values()) finishShape(s, true);
 
-  return { lines: { type: 'FeatureCollection', features }, undefinedCodes: [...undefinedCodes].sort(), onLines };
+  return { lines: { type: 'FeatureCollection', features }, figures, undefinedCodes: [...undefinedCodes].sort(), onLines };
+}
+
+/**
+ * A figure's outline from its points' x/y, with curves densified and shapes
+ * completed. `detail` multiplies the number of vertices on curves: the map
+ * needs few, measuring along a curve more.
+ */
+export function figureOutline(f: Pick<LineFigure, 'shape' | 'nodes' | 'closed' | 'value'>, detail = 1): [number, number][] {
+  const pts = f.nodes.map((n): [number, number] => [n.x, n.y]);
+  if (f.shape === 'join') return pts;
+  if (f.shape !== 'line') return shapeRing(f, detail) ?? pts;
+  const coords = figureCoords(f.nodes, detail);
+  if (f.closed && f.nodes.length >= 3 && !sameXY(coords[0], coords[coords.length - 1])) coords.push(coords[0]);
+  return coords;
+}
+
+/** The closed outline of a rectangle or circle, or undefined until it has enough points. */
+function shapeRing(f: Pick<LineFigure, 'shape' | 'nodes' | 'value'>, detail = 1): [number, number][] | undefined {
+  const pts = f.nodes.map((n): [number, number] => [n.x, n.y]);
+  if (f.shape === 'rectangle') return rectangle(pts, f.value);
+  if (f.shape === 'circleEdge') return pts.length >= 3 ? circleThrough(pts[0], pts[1], pts[2], detail) : undefined;
+  if (f.shape === 'circleCenter') {
+    const r = f.value ?? (pts.length >= 2 ? Math.hypot(pts[1][0] - pts[0][0], pts[1][1] - pts[0][1]) : 0);
+    return r > 0 ? circle(pts[0], r, detail) : undefined;
+  }
+  return undefined;
 }
 
 /** Vertices of a figure, with its curves densified. */
-function figureCoords(nodes: Node[]): [number, number][] {
+function figureCoords(nodes: FigureNode[], detail: number): [number, number][] {
   if (!nodes.length) return [];
-  const xy = (n: Node): [number, number] => [n.x, n.y];
+  const xy = (n: FigureNode): [number, number] => [n.x, n.y];
   const out: [number, number][] = [xy(nodes[0])];
   let i = 0;
   while (i < nodes.length - 1) {
@@ -257,21 +300,21 @@ function figureCoords(nodes: Node[]): [number, number][] {
     let j = i + 1;
     while (j < nodes.length - 1 && !nodes[j].curveEnd) j++;
     const before = i > 0 ? xy(nodes[i - 1]) : undefined;
-    out.push(...curve(nodes.slice(i, j + 1).map(xy), kind, before).slice(1));
+    out.push(...curve(nodes.slice(i, j + 1).map(xy), kind, before, detail).slice(1));
     i = j;
   }
   return out;
 }
 
-function curve(pts: [number, number][], kind: Node['curveStart'], before?: [number, number]): [number, number][] {
-  if (pts.length === 2 && kind === 'tangentArc' && before) return tangentArc(before, pts[0], pts[1]);
-  if (pts.length === 3 && kind !== 'smooth') return arcThrough(pts[0], pts[1], pts[2]) ?? pts;
-  if (pts.length >= 3) return catmullRom(pts);
+function curve(pts: [number, number][], kind: FigureNode['curveStart'], before: [number, number] | undefined, detail: number): [number, number][] {
+  if (pts.length === 2 && kind === 'tangentArc' && before) return tangentArc(before, pts[0], pts[1], detail);
+  if (pts.length === 3 && kind !== 'smooth') return arcThrough(pts[0], pts[1], pts[2], detail) ?? pts;
+  if (pts.length >= 3) return catmullRom(pts, detail);
   return pts;
 }
 
 /** Circular arc from a through b to c, or undefined if they're in a line. */
-export function arcThrough(a: [number, number], b: [number, number], c: [number, number]): [number, number][] | undefined {
+export function arcThrough(a: [number, number], b: [number, number], c: [number, number], detail = 1): [number, number][] | undefined {
   const centre = circumcentre(a, b, c);
   if (!centre) return undefined;
   const r = Math.hypot(a[0] - centre[0], a[1] - centre[1]);
@@ -282,10 +325,10 @@ export function arcThrough(a: [number, number], b: [number, number], c: [number,
   let sweep = ang(c) - a0;
   if (ccw && sweep < 0) sweep += 2 * Math.PI;
   if (!ccw && sweep > 0) sweep -= 2 * Math.PI;
-  return arcPoints(centre, r, a0, sweep, a, c);
+  return arcPoints(centre, r, a0, sweep, a, c, detail);
 }
 
-function tangentArc(before: [number, number], a: [number, number], b: [number, number]): [number, number][] {
+function tangentArc(before: [number, number], a: [number, number], b: [number, number], detail: number): [number, number][] {
   const tx = a[0] - before[0];
   const ty = a[1] - before[1];
   const dx = b[0] - a[0];
@@ -303,7 +346,7 @@ function tangentArc(before: [number, number], a: [number, number], b: [number, n
   let sweep = Math.atan2(b[1] - centre[1], b[0] - centre[0]) - a0;
   if (cross > 0 && sweep < 0) sweep += 2 * Math.PI;
   if (cross < 0 && sweep > 0) sweep -= 2 * Math.PI;
-  return arcPoints(centre, r, a0, sweep, a, b);
+  return arcPoints(centre, r, a0, sweep, a, b, detail);
 }
 
 function arcPoints(
@@ -313,9 +356,10 @@ function arcPoints(
   sweep: number,
   first: [number, number],
   last: [number, number],
+  detail: number,
 ): [number, number][] {
   // About one vertex every 3°, so curves stay smooth at any zoom.
-  const steps = Math.max(8, Math.ceil(Math.abs(sweep) / (Math.PI / 60)));
+  const steps = Math.ceil(Math.max(8, Math.abs(sweep) / (Math.PI / 60)) * detail);
   const out: [number, number][] = [first];
   for (let k = 1; k < steps; k++) {
     const t = a0 + (sweep * k) / steps;
@@ -338,15 +382,16 @@ function circumcentre(a: [number, number], b: [number, number], c: [number, numb
   ];
 }
 
-export function circleThrough(a: [number, number], b: [number, number], c: [number, number]): [number, number][] | undefined {
+export function circleThrough(a: [number, number], b: [number, number], c: [number, number], detail = 1): [number, number][] | undefined {
   const centre = circumcentre(a, b, c);
-  return centre && circle(centre, Math.hypot(a[0] - centre[0], a[1] - centre[1]));
+  return centre && circle(centre, Math.hypot(a[0] - centre[0], a[1] - centre[1]), detail);
 }
 
-function circle(centre: [number, number], r: number): [number, number][] {
+function circle(centre: [number, number], r: number, detail = 1): [number, number][] {
   const out: [number, number][] = [];
-  for (let k = 0; k <= 72; k++) {
-    const t = (k / 72) * 2 * Math.PI;
+  const steps = 72 * detail;
+  for (let k = 0; k <= steps; k++) {
+    const t = (k / steps) * 2 * Math.PI;
     out.push([centre[0] + r * Math.cos(t), centre[1] + r * Math.sin(t)]);
   }
   return out;
@@ -374,7 +419,7 @@ export function rectangle(pts: [number, number][], width?: number): [number, num
 }
 
 /** Centripetal Catmull–Rom spline through every point. */
-function catmullRom(pts: [number, number][]): [number, number][] {
+function catmullRom(pts: [number, number][], detail: number): [number, number][] {
   const out: [number, number][] = [pts[0]];
   const p = [pts[0], ...pts, pts[pts.length - 1]];
   // Mirror the end points so the curve leaves and arrives along the chords.
@@ -387,7 +432,7 @@ function catmullRom(pts: [number, number][]): [number, number][] {
     const t1 = knot(p0, p1);
     const t2 = t1 + knot(p1, p2);
     const t3 = t2 + knot(p2, p3);
-    const steps = 12;
+    const steps = 12 * detail;
     for (let k = 1; k <= steps; k++) {
       const t = t1 + ((t2 - t1) * k) / steps;
       const lerp = (u: [number, number], v: [number, number], ta: number, tb: number): [number, number] => {

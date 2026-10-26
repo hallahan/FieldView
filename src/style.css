@@ -130,6 +130,16 @@ tr.has-hint th { cursor: help; }
 tr.has-hint .label { text-decoration: underline dotted; text-underline-offset: 3px; }
 .hint { display: none; margin-top: 4px; font-size: 12px; font-weight: 400; text-decoration: none; }
 tr.show-hint .hint { display: block; }
+/* A line's panel: its colour, and values that change along it. */
+.line-swatch { display: inline-block; width: 22px; height: 5px; border-radius: 3px; align-self: center; flex-shrink: 0; }
+.detail-head .desc { font-size: 17px; color: var(--muted); }
+.along { display: block; }
+.along + .along { margin-top: 5px; }
+/* Rows that open a point or a line. */
+tr.link-row { cursor: pointer; }
+tr.link-row:hover { background: var(--panel); }
+.row-link { padding: 0; border: none; background: none; color: var(--link); font: 600 14px var(--font-mono); text-align: left; word-break: break-all; }
+tr.link-row td::after { content: ' ›'; color: var(--link); font-weight: 600; }
 .no-pos { font: 11px var(--font-sans); color: var(--muted); margin-left: 6px; }
 .code { font-family: var(--font-mono); font-size: 13px; font-weight: 500; padding: 1px 6px; border-radius: 4px; background: var(--border); }
 .warn { color: #b45309; margin: 8px 0 0; }
@@ -217,6 +227,7 @@ a { color: var(--accent); }
   .detail-nav { font-size: 15px; }
   .detail-nav button { padding: 10px 16px; }
   details.group > summary { padding: 12px 0 6px; }
+  .row-link { font-size: 16px; }
   .maplibregl-ctrl-group button { width: 40px; height: 40px; }
   #views button, .actions button, .save-controls button, .inline-form button, #copy-link, select { padding: 11px 14px; }
   .inline-form input, .connect input { font-size: 16px; padding: 10px; }

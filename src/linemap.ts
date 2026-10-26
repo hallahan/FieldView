@@ -10,7 +10,10 @@ import { dashArray, decorationImage, decorationSize, LINE_WIDTH, symbolImage } f
 type Basemap = 'streets' | 'satellite' | string;
 
 /** Every layer this module adds, for showing and hiding. */
-export const LINE_LAYERS = ['lines-fill', 'lines-solid', 'lines-dash', 'lines-deco', 'lines-label'];
+export const LINE_LAYERS = ['lines-fill', 'lines-selected', 'lines-solid', 'lines-dash', 'lines-deco', 'lines-label'];
+
+/** Highlight of the selected line, the yellow of the selected point's ring. */
+const SELECTED_COLOR = '#ffd43b';
 
 const pixelRatio = () => Math.min(3, Math.max(1, Math.ceil(window.devicePixelRatio || 1)));
 
@@ -19,6 +22,7 @@ export function initLineMap(map: maplibregl.Map) {
   let basemap: Basemap = 'streets';
   let data: FeatureCollection<LineString | Polygon, LineProps & Record<string, unknown>> = { type: 'FeatureCollection', features: [] };
   let dashes = new Map<string, number[]>();
+  let selected = -1;
 
   // Line style and symbol images are drawn the first time the map asks for them.
   map.on('styleimagemissing', (e) => {
@@ -49,6 +53,15 @@ export function initLineMap(map: maplibregl.Map) {
         layout: { visibility },
         filter: ['all', ['==', ['geometry-type'], 'Polygon'], ['has', 'fill']],
         paint: { 'fill-color': ['get', 'fill'], 'fill-opacity': ['*', 0.5, ['get', 'fillOpacity']] },
+      },
+      {
+        // Under the line itself, so its colour and style still show.
+        id: 'lines-selected',
+        type: 'line',
+        source: 'lines',
+        layout: { visibility, 'line-join': 'round', 'line-cap': 'round' },
+        filter: ['==', ['get', 'fid'], selected],
+        paint: { 'line-color': SELECTED_COLOR, 'line-width': 10, 'line-opacity': 0.8 },
       },
       {
         id: 'lines-solid',
@@ -138,6 +151,12 @@ export function initLineMap(map: maplibregl.Map) {
     for (const id of LINE_LAYERS) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
   }
 
+  /** Highlight a line by its fid, or none. */
+  function setSelected(fid: number | undefined) {
+    selected = fid ?? -1;
+    if (map.getLayer('lines-selected')) map.setFilter('lines-selected', ['==', ['get', 'fid'], selected]);
+  }
+
   /** The icon id for a point's symbol, or '' when its code has none. */
   function symbolFor(lib: FeatureLibrary | undefined, code: string, colorOf: (code: string) => string): string {
     // Symbol images are drawn from this library when the map asks for them.
@@ -157,6 +176,7 @@ export function initLineMap(map: maplibregl.Map) {
     addLayers,
     update,
     setVisible,
+    setSelected,
     symbolFor,
     setBasemap: (b: Basemap) => (basemap = b),
     visibleColor: (css: string) => visibleColor(css, basemap),
