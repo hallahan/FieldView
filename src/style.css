@@ -62,7 +62,6 @@ h3 { margin: 16px 0 6px; font: 600 12px var(--font-sans); text-transform: upperc
 /* Once a file is open, shrink the picker to a single row. */
 .loaded #dropzone { flex-direction: row; justify-content: center; padding: 10px; border-style: solid; }
 .loaded #dropzone span, .loaded #sample-btn { display: none; }
-#point-detail { scroll-margin-top: 28px; }
 button { font: inherit; cursor: pointer; }
 button.link { background: none; border: none; color: var(--link); padding: 0; align-self: flex-start; text-decoration: underline; }
 #status:empty { display: none; }
@@ -98,7 +97,7 @@ input[type=search], #proj-input {
 .tab[hidden] { display: none; }
 table { width: 100%; border-collapse: collapse; }
 #points-table th, #points-table td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--border); }
-#points-table th { position: sticky; top: -16px; background: var(--bg); font: 600 12px var(--font-sans); color: var(--muted); }
+#points-table th { position: sticky; z-index: 1; top: -16px; background: var(--bg); font: 600 12px var(--font-sans); color: var(--muted); }
 #points-table tbody tr { cursor: pointer; }
 #points-table tbody tr:hover { background: var(--panel); }
 #points-table tr.selected { background: var(--selected) !important; }
@@ -106,9 +105,27 @@ table { width: 100%; border-collapse: collapse; }
 .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
 table.kv th, table.kv td { text-align: left; vertical-align: top; padding: 3px 6px; border-bottom: 1px solid var(--border); word-break: break-word; }
 table.kv th { font-family: var(--font-sans); font-size: 13px; font-weight: 500; color: var(--muted); width: 45%; }
-#point-detail { padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
-.detail-head { display: flex; justify-content: space-between; align-items: center; }
-.detail-head .close { background: none; border: none; font-size: 20px; color: var(--muted); }
+/* Properties of the selected point, in place of the list. */
+#point-detail { display: flex; flex-direction: column; gap: 4px; scroll-margin-top: 0; }
+.detail-head {
+  position: sticky; top: -16px; z-index: 1; margin: 0 -16px; padding: 8px 16px 10px;
+  background: var(--bg); border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px;
+}
+.detail-nav { display: flex; align-items: center; gap: 8px; font-family: var(--font-sans); font-size: 13px; }
+.detail-nav .muted { flex: 1; text-align: center; }
+.detail-nav button { padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); }
+.detail-nav .back { color: var(--link); border-color: transparent; padding-left: 0; font-weight: 600; }
+.stepper { display: flex; gap: 4px; }
+.detail-head h2 { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+.detail-head .name { font-family: var(--font-mono); font-size: 24px; font-weight: 650; word-break: break-all; }
+.detail-head .code { font-size: 16px; padding: 2px 8px; }
+details.group { margin-top: 6px; }
+details.group > summary {
+  padding: 8px 0 4px; font: 600 12px var(--font-sans); text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+}
+details.group table.kv th { width: 42%; }
+.sub-value { display: block; font-size: 13px; color: var(--muted); }
+.no-pos { font: 11px var(--font-sans); color: var(--muted); margin-left: 6px; }
 .code { font-family: var(--font-mono); font-size: 13px; font-weight: 500; padding: 1px 6px; border-radius: 4px; background: var(--border); }
 .warn { color: #b45309; margin: 8px 0 0; }
 details { margin-top: 12px; }
@@ -192,7 +209,9 @@ a { color: var(--accent); }
   #dropzone { padding: 22px; }
   .fxl-actions label.link, .fxl-actions button.link { padding: 6px 0; }
   .drop-hint { display: none; }
-  .detail-head .close { font-size: 28px; padding: 0 8px; }
+  .detail-nav { font-size: 15px; }
+  .detail-nav button { padding: 10px 16px; }
+  details.group > summary { padding: 12px 0 6px; }
   .maplibregl-ctrl-group button { width: 40px; height: 40px; }
   #views button, .actions button, .save-controls button, .inline-form button, #copy-link, select { padding: 11px 14px; }
   .inline-form input, .connect input { font-size: 16px; padding: 10px; }
@@ -219,6 +238,8 @@ a { color: var(--accent); }
   #sheet-handle span { width: 44px; height: 5px; border-radius: 3px; background: var(--border); }
   header .sub { display: none; }
   #points-table th { top: 21px; }
+  .detail-head { top: 21px; margin: 0 -14px; padding: 6px 14px 10px; }
+  #point-detail { scroll-margin-top: 21px; }
 }
 
 /* Typography and the theoutpost.io look: serif for reading, sans for
@@ -226,6 +247,9 @@ a { color: var(--accent); }
 header { margin: -16px -16px 0; padding: 14px 16px 12px; background: var(--sage); }
 button, input, select, textarea, summary, .segmented, #tabs, #points-table td { font-family: var(--font-sans); }
 #points-table td:nth-child(-n+2), table.kv td, #proj-input { font-family: var(--font-mono); font-size: 15px; font-weight: 450; }
+/* Name and code are what the crew looks for: make them the strongest text in the list. */
+#points-table td:first-child { font-weight: 650; }
+#points-table td:nth-child(2) { font-weight: 550; }
 #points-table td, table.kv td { font-variant-numeric: tabular-nums; }
 #dropzone strong { font-size: 17px; font-weight: 600; }
 #dropzone { background: var(--panel); border-color: var(--border); }

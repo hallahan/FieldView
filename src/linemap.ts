@@ -39,7 +39,8 @@ export function initLineMap(map: maplibregl.Map) {
   function addLayers(visible: boolean, before?: string) {
     if (map.getSource('lines')) return;
     const visibility = visible ? 'visible' : 'none';
-    map.addSource('lines', { type: 'geojson', data });
+    // Full precision, like the points, so vertices sit exactly on their shots.
+    map.addSource('lines', { type: 'geojson', data, maxzoom: 24 });
     const layers: LayerSpecification[] = [
       {
         id: 'lines-fill',
