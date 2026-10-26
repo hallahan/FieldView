@@ -1,0 +1,446 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Synthetic sample file for OpenFieldView: a total station job in assumed coordinates. Not real survey data. -->
+<JOBFile jobName="Assumed Coordinates (sample)" version="6.00" product="Trimble Access" productVersion="2025.10" TimeStamp="2026-10-20T09:00:00">
+  <FieldBook>
+    <JobPropertiesRecord ID="00000001" TimeStamp="2026-10-20T09:00:00">
+      <Reference>FV-0002</Reference>
+      <Description>Total station topo on an assumed coordinate system: CP1 is 10000, 10000 and the bearing to CP2 is assumed north (synthetic data)</Description>
+      <Operator>Field Crew 2</Operator>
+    </JobPropertiesRecord>
+    <CoordinateSystemRecord ID="00000002" TimeStamp="2026-10-20T09:00:00">
+      <SystemName>No projection/no datum</SystemName>
+      <ZoneName>No projection/no datum</ZoneName>
+      <DatumName>No datum</DatumName>
+    </CoordinateSystemRecord>
+    <UnitsRecord ID="00000003" TimeStamp="2026-10-20T09:00:00">
+      <DistanceUnits>USSurveyFeet</DistanceUnits>
+      <AngleUnits>DMSDegrees</AngleUnits>
+      <CoordinateOrder>North-East-Elevation</CoordinateOrder>
+    </UnitsRecord>
+    <PointRecord ID="00000028" TimeStamp="2026-10-20T09:01:00">
+      <Name>CP1</Name>
+      <Code>CP</Code>
+      <Method>KeyedInCoordinates</Method>
+      <Classification>Control</Classification>
+      <Deleted>false</Deleted>
+      <Grid>
+        <North>3048.0061</North>
+        <East>3048.0061</East>
+        <Elevation>30.4801</Elevation>
+      </Grid>
+    </PointRecord>
+    <PointRecord ID="00000029" TimeStamp="2026-10-20T09:02:00">
+      <Name>CP2</Name>
+      <Code>CP</Code>
+      <Method>KeyedInCoordinates</Method>
+      <Classification>Control</Classification>
+      <Deleted>false</Deleted>
+      <Grid>
+        <North>3124.2062</North>
+        <East>3048.0061</East>
+        <Elevation>30.8458</Elevation>
+      </Grid>
+    </PointRecord>
+    <StationRecord ID="00000030" TimeStamp="2026-10-20T09:05:00">
+      <StationName>CP1</StationName>
+      <TheodoliteHeight>1.55</TheodoliteHeight>
+      <StationType>StandardStation</StationType>
+      <ScaleFactor>1</ScaleFactor>
+    </StationRecord>
+    <TargetRecord ID="00000031" TimeStamp="2026-10-20T09:05:00">
+      <PrismConstant>-0.0300</PrismConstant>
+      <TargetHeight>1.8</TargetHeight>
+    </TargetRecord>
+    <BackBearingRecord ID="00000032" TimeStamp="2026-10-20T09:06:00">
+      <Station>CP1</Station>
+      <BackSight>CP2</BackSight>
+      <Face1HorizontalCircle>0.00000000</Face1HorizontalCircle>
+      <OrientationCorrection>0.00000000</OrientationCorrection>
+      <StationRecordID>00000030</StationRecordID>
+    </BackBearingRecord>
+    <PointRecord ID="00000010" TimeStamp="2026-10-20T09:10:00">
+      <Name>100</Name>
+      <Code>BLDG BL</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000030</StationID>
+      <BackBearingID>00000032</BackBearingID>
+      <TargetID>00000031</TargetID>
+      <Circle>
+        <HorizontalCircle>36.86989765</HorizontalCircle>
+        <VerticalCircle>88.73969615</VerticalCircle>
+        <EDMDistance>25.0060</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="00000011" TimeStamp="2026-10-20T09:11:00">
+      <Name>101</Name>
+      <Code>BLDG</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000030</StationID>
+      <BackBearingID>00000032</BackBearingID>
+      <TargetID>00000031</TargetID>
+      <Circle>
+        <HorizontalCircle>67.81802479</HorizontalCircle>
+        <VerticalCircle>89.07429399</VerticalCircle>
+        <EDMDistance>34.0433</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="00000012" TimeStamp="2026-10-20T09:12:00">
+      <Name>102</Name>
+      <Code>BLDG</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000030</StationID>
+      <BackBearingID>00000032</BackBearingID>
+      <TargetID>00000031</TargetID>
+      <Circle>
+        <HorizontalCircle>56.66761666</HorizontalCircle>
+        <VerticalCircle>89.27443630</VerticalCircle>
+        <EDMDistance>43.4332</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="00000013" TimeStamp="2026-10-20T09:13:00">
+      <Name>103</Name>
+      <Code>BLDG CL</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000030</StationID>
+      <BackBearingID>00000032</BackBearingID>
+      <TargetID>00000031</TargetID>
+      <Circle>
+        <HorizontalCircle>32.51087875</HorizontalCircle>
+        <VerticalCircle>89.14318899</VerticalCircle>
+        <EDMDistance>36.7804</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="00000014" TimeStamp="2026-10-20T09:14:00">
+      <Name>110</Name>
+      <Code>CURB BL</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000030</StationID>
+      <BackBearingID>00000032</BackBearingID>
+      <TargetID>00000031</TargetID>
+      <Circle>
+        <HorizontalCircle>8.14295310</HorizontalCircle>
+        <VerticalCircle>89.63901166</VerticalCircle>
+        <EDMDistance>15.8720</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="00000015" TimeStamp="2026-10-20T09:15:00">
+      <Name>111</Name>
+      <Code>CURB</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000030</StationID>
+      <BackBearingID>00000032</BackBearingID>
+      <TargetID>00000031</TargetID>
+      <Circle>
+        <HorizontalCircle>37.41963339</HorizontalCircle>
+        <VerticalCircle>89.63696954</VerticalCircle>
+        <EDMDistance>15.7827</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="00000016" TimeStamp="2026-10-20T09:16:00">
+      <Name>112</Name>
+      <Code>CURB</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000030</StationID>
+      <BackBearingID>00000032</BackBearingID>
+      <TargetID>00000031</TargetID>
+      <Circle>
+        <HorizontalCircle>61.07343313</HorizontalCircle>
+        <VerticalCircle>89.70383565</VerticalCircle>
+        <EDMDistance>19.3460</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="00000017" TimeStamp="2026-10-20T09:17:00">
+      <Name>113</Name>
+      <Code>CURB</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000030</StationID>
+      <BackBearingID>00000032</BackBearingID>
+      <TargetID>00000031</TargetID>
+      <Circle>
+        <HorizontalCircle>75.71615104</HorizontalCircle>
+        <VerticalCircle>89.77126280</VerticalCircle>
+        <EDMDistance>25.0488</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="00000018" TimeStamp="2026-10-20T09:18:00">
+      <Name>114</Name>
+      <Code>CURB</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000030</StationID>
+      <BackBearingID>00000032</BackBearingID>
+      <TargetID>00000031</TargetID>
+      <Circle>
+        <HorizontalCircle>84.57424885</HorizontalCircle>
+        <VerticalCircle>89.81959010</VerticalCircle>
+        <EDMDistance>31.7587</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="00000019" TimeStamp="2026-10-20T09:19:00">
+      <Name>115</Name>
+      <Code>CURB EL</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000030</StationID>
+      <BackBearingID>00000032</BackBearingID>
+      <TargetID>00000031</TargetID>
+      <Circle>
+        <HorizontalCircle>90.25623502</HorizontalCircle>
+        <VerticalCircle>89.85293232</VerticalCircle>
+        <EDMDistance>38.9588</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="0000001A" TimeStamp="2026-10-20T09:20:00">
+      <Name>120</Name>
+      <Code>EP BL</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000030</StationID>
+      <BackBearingID>00000032</BackBearingID>
+      <TargetID>00000031</TargetID>
+      <Circle>
+        <HorizontalCircle>356.72211072</HorizontalCircle>
+        <VerticalCircle>90.30795196</VerticalCircle>
+        <EDMDistance>9.3028</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="0000001B" TimeStamp="2026-10-20T09:21:00">
+      <Name>121</Name>
+      <Code>EP</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000030</StationID>
+      <BackBearingID>00000032</BackBearingID>
+      <TargetID>00000031</TargetID>
+      <Circle>
+        <HorizontalCircle>48.10071535</HorizontalCircle>
+        <VerticalCircle>90.31310708</VerticalCircle>
+        <EDMDistance>9.1496</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="0000001C" TimeStamp="2026-10-20T09:22:00">
+      <Name>122</Name>
+      <Code>EP</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000030</StationID>
+      <BackBearingID>00000032</BackBearingID>
+      <TargetID>00000031</TargetID>
+      <Circle>
+        <HorizontalCircle>78.29120006</HorizontalCircle>
+        <VerticalCircle>90.19821469</VerticalCircle>
+        <EDMDistance>14.4530</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="0000001D" TimeStamp="2026-10-20T09:23:00">
+      <Name>123</Name>
+      <Code>EP</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000030</StationID>
+      <BackBearingID>00000032</BackBearingID>
+      <TargetID>00000031</TargetID>
+      <Circle>
+        <HorizontalCircle>90.65077313</HorizontalCircle>
+        <VerticalCircle>90.13327313</VerticalCircle>
+        <EDMDistance>21.4956</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="0000001E" TimeStamp="2026-10-20T09:24:00">
+      <Name>124</Name>
+      <Code>EP</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000030</StationID>
+      <BackBearingID>00000032</BackBearingID>
+      <TargetID>00000031</TargetID>
+      <Circle>
+        <HorizontalCircle>96.76633025</HorizontalCircle>
+        <VerticalCircle>90.09865479</VerticalCircle>
+        <EDMDistance>29.0385</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="0000001F" TimeStamp="2026-10-20T09:25:00">
+      <Name>125</Name>
+      <Code>EP EL</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000030</StationID>
+      <BackBearingID>00000032</BackBearingID>
+      <TargetID>00000031</TargetID>
+      <Circle>
+        <HorizontalCircle>100.33648959</HorizontalCircle>
+        <VerticalCircle>90.07790019</VerticalCircle>
+        <EDMDistance>36.7751</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="00000020" TimeStamp="2026-10-20T09:26:00">
+      <Name>130</Name>
+      <Code>FENCE BL</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000030</StationID>
+      <BackBearingID>00000032</BackBearingID>
+      <TargetID>00000031</TargetID>
+      <Circle>
+        <HorizontalCircle>23.18147091</HorizontalCircle>
+        <VerticalCircle>89.07221718</VerticalCircle>
+        <EDMDistance>46.3187</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="00000021" TimeStamp="2026-10-20T09:27:00">
+      <Name>131</Name>
+      <Code>FENCE</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000030</StationID>
+      <BackBearingID>00000032</BackBearingID>
+      <TargetID>00000031</TargetID>
+      <Circle>
+        <HorizontalCircle>35.37558555</HorizontalCircle>
+        <VerticalCircle>89.09239934</VerticalCircle>
+        <EDMDistance>47.3486</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="00000022" TimeStamp="2026-10-20T09:28:00">
+      <Name>132</Name>
+      <Code>FENCE</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000030</StationID>
+      <BackBearingID>00000032</BackBearingID>
+      <TargetID>00000031</TargetID>
+      <Circle>
+        <HorizontalCircle>46.57269447</HorizontalCircle>
+        <VerticalCircle>89.14705019</VerticalCircle>
+        <EDMDistance>50.3821</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="00000023" TimeStamp="2026-10-20T09:29:00">
+      <Name>133</Name>
+      <Code>FENCE EL</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000030</StationID>
+      <BackBearingID>00000032</BackBearingID>
+      <TargetID>00000031</TargetID>
+      <Circle>
+        <HorizontalCircle>56.17999032</HorizontalCircle>
+        <VerticalCircle>89.21993562</VerticalCircle>
+        <EDMDistance>55.0893</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="00000024" TimeStamp="2026-10-20T09:30:00">
+      <Name>140</Name>
+      <Code>TREE</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000030</StationID>
+      <BackBearingID>00000032</BackBearingID>
+      <TargetID>00000031</TargetID>
+      <Circle>
+        <HorizontalCircle>24.95592051</HorizontalCircle>
+        <VerticalCircle>88.77202285</VerticalCircle>
+        <EDMDistance>30.3305</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="00000025" TimeStamp="2026-10-20T09:31:00">
+      <Name>141</Name>
+      <Code>TREE</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000030</StationID>
+      <BackBearingID>00000032</BackBearingID>
+      <TargetID>00000031</TargetID>
+      <Circle>
+        <HorizontalCircle>69.83938880</HorizontalCircle>
+        <VerticalCircle>89.39387149</VerticalCircle>
+        <EDMDistance>42.5381</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="00000026" TimeStamp="2026-10-20T09:32:00">
+      <Name>142</Name>
+      <Code>MH</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000030</StationID>
+      <BackBearingID>00000032</BackBearingID>
+      <TargetID>00000031</TargetID>
+      <Circle>
+        <HorizontalCircle>76.65826199</HorizontalCircle>
+        <VerticalCircle>90.00000000</VerticalCircle>
+        <EDMDistance>19.7461</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+    <PointRecord ID="00000027" TimeStamp="2026-10-20T09:33:00">
+      <Name>143</Name>
+      <Code>FH</Code>
+      <Method>MeanTurnedAngle</Method>
+      <Classification>Normal</Classification>
+      <Deleted>false</Deleted>
+      <StationID>00000030</StationID>
+      <BackBearingID>00000032</BackBearingID>
+      <TargetID>00000031</TargetID>
+      <Circle>
+        <HorizontalCircle>16.02312447</HorizontalCircle>
+        <VerticalCircle>89.49304950</VerticalCircle>
+        <EDMDistance>16.9533</EDMDistance>
+        <Face>Face1</Face>
+      </Circle>
+    </PointRecord>
+  </FieldBook>
+</JOBFile>

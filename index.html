@@ -31,6 +31,7 @@
           <div class="samples">
             <button id="sample-btn" class="link">Try a sample file</button>
             <button id="sample-rw5-btn" class="link">Try an RW5 sample</button>
+            <button id="sample-local-btn" class="link">Try assumed coordinates</button>
           </div>
 
           <div id="status" role="status"></div>
@@ -72,6 +73,10 @@
               <datalist id="proj-presets"></datalist>
               <button type="submit">Apply</button>
             </form>
+            <div id="place-offer" hidden>
+              <p id="place-offer-text"></p>
+              <button id="place-start" class="primary">Place on the map</button>
+            </div>
           </section>
 
           <nav id="tabs" hidden>
@@ -122,12 +127,27 @@
             <button data-basemap="satellite">Satellite</button>
           </div>
           <button id="align-imagery" title="Drag the imagery to line it up with the survey" hidden>Align</button>
+          <button id="place-job" class="map-tool" title="Move and rotate a job in assumed coordinates into place" hidden>Place</button>
         </div>
         <div id="align-bar" role="status" hidden>
           <p><strong>Drag the imagery</strong> to line it up with your points and linework. <span id="align-offset" class="muted"></span></p>
           <div class="align-actions">
             <button id="align-reset">Reset</button>
             <button id="align-done" class="primary">Done</button>
+          </div>
+        </div>
+        <div id="place-target" hidden></div>
+        <div id="place-bar" role="status" hidden>
+          <p id="place-help"></p>
+          <div id="place-fields">
+            <label for="place-rotation">Rotation</label>
+            <input id="place-rotation" inputmode="decimal" autocomplete="off" spellcheck="false" title="Degrees added to the job's bearings: 12.5 or 12°30'00&quot;" />
+            <span id="place-pivot" class="muted"></span>
+          </div>
+          <div class="align-actions">
+            <button id="place-here" title="Move the job to the middle of the map"></button>
+            <button id="place-reset">Start over</button>
+            <button id="place-done" class="primary">Done</button>
           </div>
         </div>
         <div id="drop-overlay" hidden>Drop a .jxl or .rw5 job, or an .fxl feature library</div>

@@ -81,6 +81,8 @@ button.link { background: none; border: none; color: var(--link); padding: 0; al
 .check input { margin-top: 3px; width: 16px; height: 16px; flex-shrink: 0; }
 #projection { background: var(--panel); padding: 10px; border-radius: 6px; }
 #projection p { margin: 0 0 8px; }
+#place-offer { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+#place-offer button { padding: 7px 14px; border-radius: 6px; font: 600 15px var(--font-sans); }
 #proj-form { display: flex; gap: 6px; }
 #units-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 #units-row[hidden] { display: none; }
@@ -151,22 +153,62 @@ details { margin-top: 12px; }
 summary { cursor: pointer; color: var(--muted); }
 #map-tools { position: absolute; top: 10px; left: 10px; display: flex; gap: 8px; }
 #basemap-toggle { display: flex; box-shadow: 0 1px 4px rgba(0,0,0,.3); border-radius: 6px; overflow: hidden; }
-#align-imagery {
+#align-imagery, #place-job {
   position: relative; padding: 6px 12px; border: none; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,.3);
   background: #fffbf0; color: #1e1b4b;
 }
-#align-imagery.active { background: var(--accent); color: #fff; }
+#align-imagery.active, #place-job.active { background: var(--accent); color: #fff; }
 /* A dot when this job's imagery has been moved. */
-#align-imagery.moved::after {
+#align-imagery.moved::after, #place-job.moved::after {
   content: ''; position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
 }
-#align-imagery.active.moved::after { background: #fff; }
+#align-imagery.active.moved::after, #place-job.active.moved::after { background: #fff; }
 .maplibregl-canvas-container.aligning { touch-action: none !important; }
-#align-bar {
+#align-bar, #place-bar {
   position: absolute; left: 10px; right: 60px; top: 52px; max-width: 460px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
   padding: 10px 12px; border-radius: 8px; background: var(--bg); color: var(--fg); box-shadow: 0 2px 8px rgba(0,0,0,.35);
 }
-#align-bar p { margin: 0; flex: 1 1 200px; }
+#align-bar p, #place-bar p { margin: 0; flex: 1 1 200px; }
+#place-bar { max-width: 520px; }
+#place-fields { display: flex; align-items: center; gap: 8px; flex: 1 1 100%; font-family: var(--font-sans); }
+#place-fields label { font-size: 14px; font-weight: 600; }
+#place-rotation {
+  width: 9.5em; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--fg);
+  font: 500 15px var(--font-mono); font-variant-numeric: tabular-nums;
+}
+#place-rotation.invalid { border-color: var(--accent); }
+#place-pivot { flex: 1 1 0; font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#place-help .muted { font: 13px var(--font-sans); }
+#place-help .place-short { display: none; }
+#place-bar { transition: opacity .15s; }
+#place-bar.dragging { opacity: .3; pointer-events: none; }
+
+/* Where "Put it here" puts the job: the middle of the map. */
+#place-target {
+  position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; margin: -22px 0 0 -22px; pointer-events: none;
+  border: 3px solid var(--accent); border-radius: 50%; box-shadow: 0 0 0 2px #fff, inset 0 0 0 2px #fff;
+  background: linear-gradient(var(--accent), var(--accent)) center / 3px 60% no-repeat, linear-gradient(var(--accent), var(--accent)) center / 60% 3px no-repeat;
+}
+
+/* The pin a placed job turns about, with an arm along the job's north and a
+   knob at its end to turn it by. Only the knob takes a finger. */
+.place-pin { width: 0; height: 0; pointer-events: none; }
+.place-pin > * { position: absolute; }
+.place-pin .pin-dot {
+  left: -9px; top: -9px; width: 18px; height: 18px; border-radius: 50%;
+  border: 3px solid var(--accent); background: rgba(255,255,255,.85); box-shadow: 0 0 0 2px #fff;
+}
+.place-pin .pin-arm { left: -1.5px; top: -88px; width: 3px; height: 79px; background: var(--accent); box-shadow: 0 0 0 1px #fff; }
+.place-pin .pin-north {
+  left: 8px; top: -82px; padding: 0 4px; border-radius: 3px; background: rgba(255,255,255,.85); color: var(--accent);
+  font: 700 11px var(--font-sans); white-space: nowrap;
+}
+.place-pin .pin-knob {
+  left: -20px; top: -128px; width: 40px; height: 40px; border-radius: 50%; pointer-events: auto; cursor: grab; touch-action: none;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent); color: #fff; border: 3px solid #fff; box-shadow: 0 1px 5px rgba(0,0,0,.45); font: 700 20px/1 var(--font-sans);
+}
+.place-pin .pin-knob:active { cursor: grabbing; }
 #align-offset { display: block; font: 13px var(--font-sans); }
 .align-actions { display: flex; gap: 8px; margin-left: auto; }
 .align-actions button { padding: 6px 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--fg); font: inherit; }
@@ -254,8 +296,10 @@ button.github { display: inline-flex; align-items: center; justify-content: cent
   #points-table td { padding: 11px 6px; }
   table.kv th, table.kv td { padding: 7px 6px; }
   #basemap-toggle button { padding: 10px 14px; }
-  #align-imagery { padding: 10px 14px; }
-  #align-bar { top: 62px; }
+  #align-imagery, #place-job { padding: 10px 14px; }
+  #align-bar, #place-bar { top: 62px; }
+  #place-rotation { font-size: 16px; padding: 9px 10px; }
+  .place-pin .pin-knob { left: -24px; top: -136px; width: 48px; height: 48px; }
   .align-actions button { padding: 10px 16px; }
   #dropzone { padding: 22px; }
   .fxl-actions label.link, .fxl-actions button.link { padding: 6px 0; }
@@ -325,4 +369,12 @@ button, input, select, textarea, summary, .segmented, #tabs, #points-table td { 
   #sheet-handle span { background: var(--active); opacity: .5; }
   header { margin: -12px -14px 0; padding: 0 14px 10px; }
   h1 { font-size: 20px; }
+}
+/* Phones, and the controller upright, where the map is only 420px wide. */
+@media (max-width: 900px) {
+  #place-bar { gap: 8px; padding: 8px 10px; }
+  #place-help .place-long { display: none; }
+  #place-help .place-short { display: inline; }
+  #place-bar .align-actions { margin-left: 0; width: 100%; }
+  #place-bar .align-actions button { flex: 1 1 auto; padding: 9px 6px; white-space: nowrap; }
 }
