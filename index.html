@@ -75,7 +75,10 @@
             </form>
             <div id="place-offer" hidden>
               <p id="place-offer-text"></p>
-              <button id="place-start" class="primary">Place on the map</button>
+              <div class="place-choices">
+                <button id="place-start" class="primary">Place on the map</button>
+                <button id="local-start">Show in its own coordinates</button>
+              </div>
             </div>
           </section>
 
@@ -127,6 +130,7 @@
             <button data-basemap="satellite">Satellite</button>
           </div>
           <button id="align-imagery" title="Drag the imagery to line it up with the survey" hidden>Align</button>
+          <span id="local-badge" title="Drawn in the job's own northings and eastings: no streets or imagery">Assumed coordinates</span>
           <button id="place-job" class="map-tool" title="Move and rotate a job in assumed coordinates into place" hidden>Place</button>
         </div>
         <div id="align-bar" role="status" hidden>

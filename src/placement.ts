@@ -47,6 +47,14 @@ export function fromPin(pl: Placement, lat: number, lon: number): [number, numbe
   return [(lon - pl.lon) * RAD * me, (lat - pl.lat) * RAD * mn];
 }
 
+/** The grid position [north, east] of a position on the map. */
+export function toGrid(pl: Placement, lat: number, lon: number): [number, number] {
+  const [e, n] = fromPin(pl, lat, lon);
+  const c = Math.cos(pl.rotation * RAD);
+  const s = Math.sin(pl.rotation * RAD);
+  return [pl.north + n * c + e * s, pl.east - n * s + e * c];
+}
+
 /** True bearing in degrees from the pin to a position on the map. */
 export function bearingFromPin(pl: Placement, lat: number, lon: number): number {
   const [e, n] = fromPin(pl, lat, lon);
@@ -68,7 +76,7 @@ export function normalizeAngle(deg: number): number {
 /** Points whose map position would come from the placement. */
 export function isPlaceable(p: JxlPoint): boolean {
   const c = p.coords;
-  return c.north !== undefined && c.east !== undefined && (c.lat === undefined || c.source === 'Grid' || c.source === 'Placed');
+  return c.north !== undefined && c.east !== undefined && (c.lat === undefined || c.source === 'Grid' || c.source === 'Placed' || c.source === 'Local');
 }
 
 /**
@@ -80,15 +88,19 @@ export function canPlace(points: JxlPoint[]): boolean {
   return points.some(isPlaceable) && !points.some((p) => tied.has(p.coords.source!));
 }
 
-/** Give every grid point its lat/long from the placement. Returns how many. */
-export function applyPlacement(points: JxlPoint[], pl: Placement): number {
+/**
+ * Give every grid point its lat/long from the placement. Returns how many.
+ * `Local` marks a stand-in placement for drawing the job in its own
+ * coordinates, whose lat/long mean nothing on the earth.
+ */
+export function applyPlacement(points: JxlPoint[], pl: Placement, source: 'Placed' | 'Local' = 'Placed'): number {
   let n = 0;
   for (const p of points) {
     if (!isPlaceable(p)) continue;
     const c = p.coords;
     [c.lat, c.lon] = placeGrid(pl, c.north!, c.east!);
     c.height = undefined;
-    c.source = 'Placed';
+    c.source = source;
     n++;
   }
   return n;
@@ -98,7 +110,7 @@ export function applyPlacement(points: JxlPoint[], pl: Placement): number {
 export function removePlacement(points: JxlPoint[]) {
   for (const p of points) {
     const c = p.coords;
-    if (c.source !== 'Placed') continue;
+    if (c.source !== 'Placed' && c.source !== 'Local') continue;
     c.lat = c.lon = c.mapLat = c.mapLon = c.source = undefined;
   }
 }

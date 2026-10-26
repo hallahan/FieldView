@@ -34,6 +34,16 @@ describe('helpers', () => {
     expect(jobPath('Assumed Topo', 'rw5')).toBe('jobs/Assumed_Topo/Assumed_Topo.rw5');
   });
 
+  it("doesn't put a job shown in its own coordinates at 0°, 0°", () => {
+    const doc = parseJxl(local);
+    applyPlacement(doc.points, initialPlacement(doc.points, 0, 0)!, 'Local');
+    expect(footprint(doc)).toBeUndefined();
+    doc.placement = initialPlacement(doc.points, 37.9, -122.06);
+    const fp = footprint(doc)!;
+    expect(fp.center[0]).toBeCloseTo(-122.06, 3);
+    expect(fp.center[1]).toBeCloseTo(37.9, 3);
+  });
+
   it('puts the centroid inside the job', () => {
     const fp = footprint(parseJxl(sample))!;
     const [w, s, e, n] = fp.bbox;
