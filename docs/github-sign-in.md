@@ -33,9 +33,11 @@ This is a one-time setup for whoever runs the site. It takes about 10 minutes. Y
 
 1. Sign in at <https://dash.cloudflare.com>.
 2. In the left sidebar open **Compute (Workers) → Workers & Pages** and click **Create**, then **Start with Hello World!**.
-3. Name it `openfieldview-auth` and click **Deploy**.
-4. Click **Edit code**. Delete everything in the editor, paste the whole of [`worker/auth.js`](../worker/auth.js), and click **Deploy**.
-5. Go back to the Worker and open **Settings → Variables and Secrets**. Click **Add** three times:
+3. Name it `openfieldview-auth` and click **Deploy**. Leave the Hello World code as it is: the code shown on this page is a read-only preview, so pasting into it does nothing.
+4. On the next page click **Edit code** (top right). This opens the real editor.
+5. Open [`worker/auth.js`](../worker/auth.js) on GitHub and click the **Copy raw file** button (the two-squares icon above the code).
+6. Back in the Cloudflare editor, click inside `worker.js` on the left, press **Ctrl+A** then **Ctrl+V** to replace everything, and click **Deploy** (top right). Use the keyboard shortcut: right-click **Paste** is blocked in Firefox and Brave because the page isn't allowed to read the clipboard.
+7. Go back to the Worker and open **Settings → Variables and Secrets**. Click **Add** three times:
    | Type | Name | Value |
    | --- | --- | --- |
    | Text | `GITHUB_CLIENT_ID` | the Client ID from step 1.10 |
@@ -43,9 +45,19 @@ This is a one-time setup for whoever runs the site. It takes about 10 minutes. Y
    | Text | `ALLOWED_ORIGINS` | `https://hallahan.github.io,http://localhost:5173` |
 
    Click **Deploy** to save them.
-6. Copy the Worker's URL from the top of its page. It looks like `https://openfieldview-auth.<your-subdomain>.workers.dev`.
+8. Copy the Worker's URL from the top of its page. It looks like `https://openfieldview-auth.<your-subdomain>.workers.dev`.
 
-(From a terminal instead: `cd worker && npx wrangler deploy`, then `npx wrangler secret put GITHUB_CLIENT_ID` and `npx wrangler secret put GITHUB_CLIENT_SECRET`.)
+If the editor still won't take the paste, deploy from a terminal instead (needs [Node.js](https://nodejs.org)). In a copy of this repo:
+
+```sh
+cd worker
+npx wrangler login                          # opens Cloudflare in the browser to approve
+npx wrangler deploy                         # creates or updates openfieldview-auth with auth.js
+npx wrangler secret put GITHUB_CLIENT_ID    # paste the Client ID when asked
+npx wrangler secret put GITHUB_CLIENT_SECRET
+```
+
+`ALLOWED_ORIGINS` comes from `wrangler.toml`, and `wrangler deploy` prints the Worker URL.
 
 ## 3. Tell the site about them
 
