@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#98b3a1" />
-    <title>OpenFieldView · JXL viewer</title>
+    <title>OpenFieldView · JXL and RW5 viewer</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e8590c' stroke='white' stroke-width='3'/%3E%3C/svg%3E" />
   </head>
   <body>
@@ -13,7 +13,7 @@
         <button id="sheet-handle" aria-label="Expand or collapse panel"><span></span></button>
         <header>
           <h1>OpenFieldView</h1>
-          <p class="sub">View Trimble JobXML (.jxl) files in the browser. Nothing leaves your device unless you tap Upload.</p>
+          <p class="sub">View Trimble JobXML (.jxl) and Carlson raw (.rw5) files in the browser. Nothing leaves your device unless you tap Upload.</p>
         </header>
 
         <nav id="views" class="segmented">
@@ -23,14 +23,15 @@
 
         <div id="view-viewer" class="view">
           <label id="dropzone" for="file-input">
-            <!-- No accept filter: Android pickers grey out unknown extensions like .jxl. -->
+            <!-- No accept filter: Android pickers grey out unknown extensions like .jxl and .rw5. -->
             <input id="file-input" type="file" hidden />
-            <strong>Open a .jxl file</strong>
+            <strong>Open a .jxl or .rw5 file</strong>
             <span class="drop-hint">or drop it anywhere on the page</span>
           </label>
-          <div class="sample-links">
+          <div class="samples">
             <button id="sample-btn" class="link">Try a sample file</button>
-            <button id="sample-local-btn" class="link">or one in assumed coordinates</button>
+            <button id="sample-rw5-btn" class="link">Try an RW5 sample</button>
+            <button id="sample-local-btn" class="link">Try assumed coordinates</button>
           </div>
 
           <div id="status" role="status"></div>
@@ -58,14 +59,22 @@
           </section>
 
           <section id="projection" hidden>
-            <p><span id="grid-count"></span> points only have grid coordinates. Choose their coordinate system to place them on the map.</p>
+            <p id="proj-text"></p>
+            <label id="units-row" hidden>
+              <span>Distance units</span>
+              <select id="units-select">
+                <option value="usft">US survey feet</option>
+                <option value="ift">International feet</option>
+                <option value="m">Metres</option>
+              </select>
+            </label>
             <form id="proj-form">
               <input id="proj-input" list="proj-presets" placeholder="EPSG:6419 or +proj=… string" autocomplete="off" />
               <datalist id="proj-presets"></datalist>
               <button type="submit">Apply</button>
             </form>
             <div id="place-offer" hidden>
-              <p>In assumed coordinates, like 10000, 10000? Drag and turn the job into place on the map instead.</p>
+              <p id="place-offer-text"></p>
               <button id="place-start" class="primary">Place on the map</button>
             </div>
           </section>
@@ -141,7 +150,7 @@
             <button id="place-done" class="primary">Done</button>
           </div>
         </div>
-        <div id="drop-overlay" hidden>Drop a .jxl job or .fxl feature library</div>
+        <div id="drop-overlay" hidden>Drop a .jxl or .rw5 job, or an .fxl feature library</div>
       </main>
     </div>
     <script type="module" src="/src/main.ts"></script>

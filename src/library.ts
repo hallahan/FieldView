@@ -2,7 +2,8 @@
 //
 // Layout of a data repo:
 //   index.geojson                       one Point per job at its centroid
-//   jobs/<jobName>/<jobName>.jxl        the latest upload; git history holds the rest
+//   jobs/<jobName>/<jobName>.jxl        the latest upload (.rw5 for Carlson raw files);
+//                                       git history holds the rest
 //
 // Uploading the same job again overwrites its file, so every field visit is a
 // commit and GitHub's history and compare views show what changed.
@@ -57,7 +58,7 @@ export async function loadIndex(gh: GitHub): Promise<JobIndex> {
 }
 
 export function jobName(doc: JxlDocument, fileName: string): string {
-  return doc.job.jobName?.trim() || fileName.replace(/\.jxl$/i, '');
+  return doc.job.jobName?.trim() || fileName.replace(/\.(jxl|rw5)$/i, '');
 }
 
 /** A job name as a single safe path segment. */
@@ -65,9 +66,9 @@ export function jobSlug(name: string): string {
   return name.replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^[._]+/, '') || 'job';
 }
 
-export function jobPath(name: string): string {
+export function jobPath(name: string, format: JxlDocument['format'] = 'jxl'): string {
   const slug = jobSlug(name);
-  return `jobs/${slug}/${slug}.jxl`;
+  return `jobs/${slug}/${slug}.${format ?? 'jxl'}`;
 }
 
 /** Mean position and extent of what was measured, leaving out deleted points and far-off keyed-in control. */
@@ -95,7 +96,7 @@ export function footprint(doc: JxlDocument): { center: [number, number]; bbox: [
 
 /** Add or update a job's entry, keeping the index sorted by name so diffs stay small. */
 export function upsertJob(index: JobIndex, doc: JxlDocument, name: string, blobSha: string, size: number, now: string): JobIndex {
-  const path = jobPath(name);
+  const path = jobPath(name, doc.format);
   const prev = index.features.find((f) => f.properties.path === path);
   const fp = footprint(doc);
   const feature: JobFeature = {
@@ -134,7 +135,7 @@ export type SaveResult = { status: 'saved'; path: string; commit: string } | { s
 export async function saveJob(gh: GitHub, text: string, doc: JxlDocument, fileName: string, now = new Date().toISOString()): Promise<SaveResult> {
   const info = await gh.info();
   const name = jobName(doc, fileName);
-  const path = jobPath(name);
+  const path = jobPath(name, doc.format);
   if (info.empty) await gh.initialize(INDEX_PATH, serializeIndex(emptyIndex()), 'Start OpenFieldView job index');
   const blobSha = await gitBlobSha(text);
   const size = new TextEncoder().encode(text).length;

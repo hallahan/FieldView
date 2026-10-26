@@ -195,7 +195,7 @@ export function initJobs({ map, open, isSheet, setSheet, showLines }: Options) {
       </div>
       <div class="actions">
         <button data-act="open" class="primary">Open</button>
-        <button data-act="download">Download .jxl</button>
+        <button data-act="download">Download .${esc(job.properties.path.split('.').pop() ?? 'jxl')}</button>
       </div>
       <table class="kv">${rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table>
       <details class="versions"><summary>Versions</summary><div class="versions-body muted">Loading…</div></details>
@@ -264,7 +264,7 @@ export function initJobs({ map, open, isSheet, setSheet, showLines }: Options) {
   async function downloadJob(slug: string, job: JobFeature, sha?: string) {
     try {
       const text = await fetchJob(slug, job, sha);
-      const url = URL.createObjectURL(new Blob([text], { type: 'application/xml' }));
+      const url = URL.createObjectURL(new Blob([text], { type: /\.rw5$/i.test(job.properties.path) ? 'text/plain' : 'application/xml' }));
       const a = document.createElement('a');
       a.href = url;
       a.download = fileName(job, sha);
@@ -277,7 +277,7 @@ export function initJobs({ map, open, isSheet, setSheet, showLines }: Options) {
 
   function fileName(job: JobFeature, sha?: string) {
     const base = job.properties.path.split('/').pop()!;
-    return sha ? base.replace(/\.jxl$/i, `_${sha.slice(0, 7)}.jxl`) : base;
+    return sha ? base.replace(/\.(jxl|rw5)$/i, (ext) => `_${sha.slice(0, 7)}${ext}`) : base;
   }
 
   function setJobsStatus(html: string, error = false) {

@@ -73,10 +73,11 @@ export function isPlaceable(p: JxlPoint): boolean {
 
 /**
  * Whether the job can be placed by hand: it has grid positions and nothing
- * measured by GNSS, which would already tie it to the earth.
+ * measured by GNSS or tied to the earth by a localization already.
  */
 export function canPlace(points: JxlPoint[]): boolean {
-  return points.some(isPlaceable) && !points.some((p) => p.coords.source === 'WGS84' || p.coords.source === 'ECEF');
+  const tied = new Set(['WGS84', 'ECEF', 'Localized']);
+  return points.some(isPlaceable) && !points.some((p) => tied.has(p.coords.source!));
 }
 
 /** Give every grid point its lat/long from the placement. Returns how many. */

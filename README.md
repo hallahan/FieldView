@@ -1,10 +1,10 @@
 # OpenFieldView
 
-A free and open source way to get field data off your data collector, onto a map, and into the cloud, without paying for a SaaS subscription. It starts with Trimble JobXML (`.jxl`) and will grow to cover other data collector formats.
+A free and open source way to get field data off your data collector, onto a map, and into the cloud, without paying for a SaaS subscription. It reads Trimble JobXML (`.jxl`) and Carlson SurvCE / SurvPC raw data (`.rw5`), and will grow to cover other data collector formats.
 
 Try it at https://hallahan.github.io/OpenFieldView/.
 
-OpenFieldView is a fully client-side web app. Open a `.jxl` file and you get:
+OpenFieldView is a fully client-side web app. Open a `.jxl` or `.rw5` file and you get:
 
 - its points on a MapLibre map (streets or satellite basemap), coloured by code
 - linework built from the points' feature codes, styled from a Trimble feature library (`.fxl`) if you add one, with each line's properties a tap away
@@ -12,6 +12,16 @@ OpenFieldView is a fully client-side web app. Open a `.jxl` file and you get:
 - metadata about the job: job properties, coordinate system, units, record counts, time span, and bounds
 
 Opening or dropping a file only shows it; it's parsed in the browser. It leaves your machine only if you tap **Upload** to send it to a GitHub repo.
+
+## Carlson raw data (RW5)
+
+An RW5 is a log of the raw observations, so OpenFieldView reduces them itself: side shots and traverses (`SS`, `TR`) from the occupied point and backsight (`OC`, `BK`, `LS`), angle sets (`BD`, `FD`, `FR`, `BR`) averaged across faces and sets, stored points (`SP`) and GPS positions (`GPS`, with their `--GS` local grid and `G0`-`G3` / `--HRMS` quality). Angles right are taken as circle readings from the backsight's, as SurvCE writes them, and the `MO` record's units, south azimuths, scale factor and curvature setting are applied. A shot to a point that's already known is kept as a check shot and doesn't move it. Each point's description is its code, so linework works as for a JXL, and `--` notes after a shot appear in its properties.
+
+An RW5 doesn't say which coordinate system it's in, so pick one under the point list. It defaults to NAD83(2011) California zone 3, and the last one used is remembered on the device. The distance unit comes from the file and can be changed there too. Then:
+
+- grid coordinates in that zone are placed on the map, like a JXL's grid-only points
+- when GPS points carry both lat/long and a local grid, the rest of the job's local grid is fitted to them (a 2D similarity transformation), so total station work on a localized, assumed grid lands in the right place
+- otherwise, assumed coordinates such as N 5000, E 5000 don't fall in the zone, so they're left off the map rather than drawn hundreds of miles away
 
 ## Linework from feature codes
 
@@ -41,7 +51,7 @@ A data repo looks like this:
 
 ```
 index.geojson                         one Point per job at its centroid, with upload dates and counts
-jobs/<jobName>/<jobName>.jxl          the latest upload of each job
+jobs/<jobName>/<jobName>.jxl          the latest upload of each job (.rw5 for Carlson jobs)
 ```
 
 Uploading the same job again overwrites its file, so every field visit is a commit and git history holds the versions. The JXL and the updated index are written in one commit, and an upload identical to the last one is skipped.

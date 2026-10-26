@@ -20,8 +20,8 @@ export interface Coordinates {
   north?: number;
   east?: number;
   elevation?: number;
-  /** Where the lat/lon came from: the file, the grid, or placed by hand on the map. */
-  source?: 'WGS84' | 'ECEF' | 'Grid' | 'Placed';
+  /** Where the lat/lon came from: the file, the grid, a GPS localization, or placed by hand on the map. */
+  source?: 'WGS84' | 'ECEF' | 'Grid' | 'Localized' | 'Placed';
   /** Grid position was computed here from a total station observation. */
   reduced?: boolean;
   /** Where to draw the point on the basemap, after any datum shift. */
@@ -70,6 +70,8 @@ export interface JxlDocument {
   crs: CrsInfo;
   /** Attributes of the <JOBFile> root: jobName, TimeStamp, controllerSerialNumber, ... */
   job: Attrs;
+  /** Which kind of file this came from. Missing means JobXML. */
+  format?: 'jxl' | 'rw5';
   /** Where a job in assumed coordinates was placed on the map by hand. */
   placement?: Placement;
 }

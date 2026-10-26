@@ -11,7 +11,8 @@ import { parseJxl, type JxlDocument, type JxlPoint, type ObservationType } from 
 import { initJobs, type JobOrigin } from './jobs';
 import { buildLinework, parseCode, type LineFigure, type Linework } from './linework';
 import { lineGroups, linesAtPoint } from './lineprops';
-import { projectGrid, resolveProjection } from './projection';
+import { gridFitsProjection, projectGrid, resolveProjection } from './projection';
+import { isRw5, parseRw5, UNIT_LABELS, type Rw5Units } from './rw5';
 import { featureGroups } from './featureprops';
 import { groundDelta, IMAGERY_TILES, initImagery, isZero, type ImageryOffset } from './imagery';
 import {
@@ -424,20 +425,41 @@ async function loadFile(file: File) {
 
 function isLibraryFile(name: string, text: string) {
   if (/\.fxl$/i.test(name)) return true;
-  if (/\.jxl$/i.test(name)) return false;
-  // Unknown extension: anything that isn't a JobXML job is tried as a library.
-  return !/<JOBFile[\s>]/.test(text.slice(0, 4096));
+  if (/\.(jxl|rw5)$/i.test(name)) return false;
+  // Unknown extension: anything that isn't a JobXML job or RW5 is tried as a library.
+  return !/<JOBFile[\s>]/.test(text.slice(0, 4096)) && !isRw5(text);
 }
 
 let loaded: { text: string; name: string; size: number; origin?: JobOrigin } | undefined;
+/** Distance unit chosen for the open RW5, when it differs from what its MO record says. */
+let rw5Units: Rw5Units | undefined;
+
+/** The coordinate system last used for an RW5 on this device, or CA zone 3. */
+function rw5Projection(): { input: string; proj4: string } {
+  try {
+    const saved = JSON.parse(readPref('rw5.projection') || 'null');
+    if (saved && typeof saved.input === 'string' && typeof saved.proj4 === 'string') return saved;
+  } catch {
+    // Fall through to the default.
+  }
+  return { input: PRESETS[0].id, proj4: PRESETS[0].proj4 };
+}
 
 /**
  * Parse and show a file. `gridDef` is a user-chosen projection for grid-only
  * points; `origin` is the repo it was opened from.
  */
 function load(text: string, name: string, size: number, gridDef?: { input: string; proj4: string }, origin?: JobOrigin) {
+  const rw5 = isRw5(text);
+  if (!loaded || loaded.text !== text) rw5Units = undefined;
   try {
-    doc = parseJxl(text, { proj4: gridDef?.proj4 });
+    if (rw5) {
+      const chosen = gridDef ?? rw5Projection();
+      const preset = PRESETS.find((p) => p.id === chosen.input);
+      doc = parseRw5(text, { projection: { label: preset?.label ?? chosen.input, proj4: chosen.proj4, id: preset?.id }, units: rw5Units });
+    } else {
+      doc = parseJxl(text, { proj4: gridDef?.proj4 });
+    }
   } catch (e) {
     setStatus((e as Error).message, true);
     return;
@@ -472,7 +494,10 @@ function load(text: string, name: string, size: number, gridDef?: { input: strin
   const detected = doc.crs.projection;
   const projection = gridDef ?? (detected && { input: detected.id ?? '', proj4: detected.proj4 });
   const projectionLabel = gridDef ? gridDef.input : detected?.label;
-  if (doc.gridOnlyCount && projection && !placement) {
+  // Assumed coordinates (N 5000, E 5000) don't belong to any real zone.
+  gridAssumed = !!doc.gridOnlyCount && !!projection && !gridFitsProjection(doc.points, projection.proj4);
+  if (projection) $<HTMLInputElement>('#proj-input').value = projection.input;
+  if (doc.gridOnlyCount && projection && !gridAssumed && !placement) {
     try {
       projected = projectGrid(doc.points, projection.proj4, doc.crs.adjustment);
       $<HTMLInputElement>('#proj-input').value = projection.input;
@@ -503,13 +528,41 @@ function load(text: string, name: string, size: number, gridDef?: { input: strin
   if (projectionError) setStatus(projectionError, true);
 }
 
-/** Offer a coordinate system, or placing by hand, for points that aren't on the map. */
+/** The job's grid points don't fit its coordinate system, so they look assumed. */
+let gridAssumed = false;
+
+/**
+ * The coordinate system panel. JobXML only needs it when grid points are left
+ * over; an RW5 never says what its grid is, so it's always shown, with units.
+ * A job in assumed coordinates is offered placing by hand instead.
+ */
 function renderProjection() {
   if (!doc) return;
   const remaining = doc.points.filter((p) => p.coords.lat === undefined && p.coords.north !== undefined).length;
-  $('#projection').hidden = remaining === 0;
-  $('#grid-count').textContent = String(remaining);
-  $('#place-offer').hidden = !canPlace(doc.points);
+  const rw5 = doc.format === 'rw5';
+  $('#projection').hidden = !rw5 && remaining === 0;
+  $('#units-row').hidden = !rw5;
+  $<HTMLSelectElement>('#units-select').value = Object.entries(UNIT_LABELS).find(([, v]) => v === doc?.crs.distanceUnits)?.[0] ?? 'usft';
+  const n = `${remaining} point${remaining === 1 ? '' : 's'}`;
+  let text: string;
+  if (placement) {
+    text = `Placed by hand on the map. If you know the job's coordinate system, apply it instead.`;
+  } else if (gridAssumed) {
+    text = `<strong>These look like assumed coordinates</strong>, so ${n} aren't on the map. They don't fall inside the chosen coordinate system's zone.`;
+  } else if (rw5) {
+    text = remaining
+      ? `RW5 files don't record their coordinate system. ${n} couldn't be placed with this one.`
+      : `RW5 files don't record their coordinate system, so check this is the one the crew used.`;
+  } else {
+    text = `${n} only have grid coordinates. Choose their coordinate system to place them on the map.`;
+  }
+  $('#proj-text').innerHTML = text;
+  // Placed points sit where they were put on the imagery, so there's nothing to shift.
+  $('#align-row').hidden = !doc.crs.nad83 || !!placement;
+  $('#place-offer').hidden = !!placement || !placeOffered();
+  $('#place-offer-text').textContent = gridAssumed
+    ? 'Drag and turn the job into place on the map instead.'
+    : 'In assumed coordinates, like 10000, 10000? Drag and turn the job into place on the map instead.';
   renderPlace();
 }
 
@@ -543,6 +596,19 @@ $<HTMLInputElement>('#file-input').addEventListener('change', (e) => {
   if (file) loadFile(file);
   // Allow re-opening the same file after editing it.
   input.value = '';
+});
+
+$('#sample-rw5-btn').addEventListener('click', async () => {
+  const res = await fetch(`${import.meta.env.BASE_URL}sample.rw5`);
+  const text = await res.text();
+  load(text, 'sample.rw5', text.length);
+});
+
+$<HTMLSelectElement>('#units-select').addEventListener('change', (e) => {
+  if (!loaded) return;
+  rw5Units = (e.target as HTMLSelectElement).value as Rw5Units;
+  const projection = doc?.crs.projection;
+  load(loaded.text, loaded.name, loaded.size, projection && { input: $<HTMLInputElement>('#proj-input').value || projection.label, proj4: projection.proj4 }, loaded.origin);
 });
 
 $('#sample-btn').addEventListener('click', async () => {
@@ -702,6 +768,7 @@ $('#proj-form').addEventListener('submit', async (e) => {
   if (!input) return;
   try {
     const def = await resolveProjection(input);
+    if (isRw5(loaded.text)) writePref('rw5.projection', JSON.stringify({ input, proj4: def }));
     // Re-parse so total station shots from GNSS setups can be reduced too.
     load(loaded.text, loaded.name, loaded.size, { input, proj4: def }, loaded.origin);
   } catch (err) {
@@ -1011,7 +1078,8 @@ function pointGroup(p: JxlPoint): PropGroup {
   if (p.surveyMethod) props.push({ label: 'Survey method', value: p.surveyMethod });
   if (p.classification && p.classification !== 'Normal') props.push({ label: 'Classification', value: p.classification });
   if (p.stored) props.push({ label: 'Stored', value: p.stored.replace('T', ' ') });
-  props.push({ label: 'Record ID', value: `${p.id} (${p.origin})` });
+  if (doc?.format === 'rw5') props.push({ label: 'Line in file', value: p.id });
+  else props.push({ label: 'Record ID', value: `${p.id} (${p.origin})` });
   return { title: 'Point', props };
 }
 
@@ -1029,7 +1097,7 @@ function coordinateGroup(p: JxlPoint): PropGroup {
     props.push({ label: 'Latitude', value: `${esc(latLonDms(c.lat, 'N', 'S'))}${deg(c.lat)}`, kind: 'html' });
     props.push({ label: 'Longitude', value: `${esc(latLonDms(c.lon!, 'E', 'W'))}${deg(c.lon!)}`, kind: 'html' });
     length('Height (ellipsoid)', c.height);
-    const from = { Grid: 'Grid coordinates', Placed: 'Placed by hand on the map (assumed coordinates)' } as Record<string, string>;
+    const from = { Grid: 'Grid coordinates', Localized: 'Local grid, through the GPS localization', Placed: 'Placed by hand on the map (assumed coordinates)' } as Record<string, string>;
     props.push({ label: 'Lat/long from', value: from[c.source!] ?? c.source! });
     if (c.mapLat !== undefined && (c.mapLat !== c.lat || c.mapLon !== c.lon)) {
       props.push({ label: `Map position (ITRF2020 ≈ WGS84, ${mapEpoch.toFixed(2)})`, value: `${c.mapLat.toFixed(9)}, ${c.mapLon!.toFixed(9)}` });
@@ -1300,9 +1368,18 @@ function pivotPoint(): JxlPoint | undefined {
   return doc.points.find((p) => !p.deleted && p.coords.north === north && p.coords.east === east);
 }
 
+/**
+ * Placing by hand is offered for grid-only jobs that are off the map, or
+ * already placed; not for one its coordinate system put on the map.
+ */
+function placeOffered(): boolean {
+  if (!doc || !canPlace(doc.points)) return false;
+  return !!placement || doc.points.some((p) => p.coords.lat === undefined && p.coords.north !== undefined);
+}
+
 function renderPlace() {
   const button = $<HTMLButtonElement>('#place-job');
-  button.hidden = !doc || !canPlace(doc.points);
+  button.hidden = !placeOffered() && !placing;
   button.classList.toggle('active', placing);
   button.classList.toggle('moved', !!placement);
   $('#place-bar').hidden = !placing;
