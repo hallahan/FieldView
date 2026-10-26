@@ -1,6 +1,7 @@
 // Work out the job's datum, epoch and projection from the JobXML.
 
 import { nad83ChainFromJob, planeAdjustmentFromJob, type Helmert, type PlaneAdjustment } from './datum';
+import { formatLength, unitOf } from './properties';
 import { child, num, text_ } from './xml';
 
 export interface CrsPreset {
@@ -35,6 +36,12 @@ export interface CrsInfo {
   projection?: { label: string; proj4: string; id?: string };
   /** Site calibration applied to the job's grid coordinates. */
   adjustment?: PlaneAdjustment;
+  /**
+   * Grid distance ÷ ground distance for the job as a whole, when it records
+   * one: Trimble Access's combined scale factor at the project location, or an
+   * RW5 file's SF. Its height is in metres.
+   */
+  scaleFactor?: { value: number; name: string; height?: number };
   /** Lat/long are NAD83, so they need shifting to sit on WGS84 imagery. */
   nad83: boolean;
   /** NAD83(2011) → ITRF2014 → ITRF2020 transformations used for that shift. */
@@ -77,6 +84,17 @@ export function detectCrs(root: Element): CrsInfo {
     ? { label: preset ? `${preset.label}, parameters from file` : `${text_(projection!, 'Type')}, parameters from file`, proj4: fromFile }
     : preset && { label: preset.label, proj4: preset.proj4, id: preset.id };
 
+  // A ground coordinate system has the factor built into its grid already.
+  const localSite = (projRecord && child(projRecord, 'LocalSite')) ?? (envCs && child(envCs, 'LocalSite'));
+  const onGrid = !localSite || ['', 'Grid'].includes(text_(localSite, 'Type'));
+  const combined = envCs && child(envCs, 'CombinedScaleFactor');
+  const csf = combined && num(combined, 'Scale');
+  const location = combined && child(combined, 'Location');
+  const scaleFactor = csf && onGrid ? { value: csf, name: 'combined scale factor', height: location && num(location, 'Height') } : undefined;
+  // The Cogo setting for which distances Trimble Access shows: GridDistance, GroundDistance...
+  const corrections = last(fieldBook, 'CorrectionsRecord') ?? (envCs && child(envCs, 'Projection'));
+  const shown = corrections ? text_(corrections, 'Distances') : '';
+
   const adjustment = planeAdjustmentFromJob(root);
   const nad83 = /nad\s*83|nad\s*1983|ca\s*srs/i.test(`${referenceFrame} ${datumName} ${systemName}`);
   const datumChain = nad83ChainFromJob(root);
@@ -106,6 +124,12 @@ export function detectCrs(root: Element): CrsInfo {
     ]);
   }
   if (distanceUnits) entries.push(['Distance units', distanceUnits]);
+  if (shown) entries.push(['Distances (Cogo setting)', shown.replace(/Distance$/, '')]);
+  if (scaleFactor) {
+    // Trimble Access takes the project height as being above the ellipsoid.
+    const at = scaleFactor.height !== undefined ? `, at ${formatLength(scaleFactor.height, unitOf(distanceUnits))} above the ellipsoid` : '';
+    entries.push(['Combined scale factor', `${scaleFactor.value.toFixed(8)}${at}`]);
+  }
   entries.push(['Grid projection used', chosen ? chosen.label : 'Not recognised: enter one to place grid-only points']);
   if (nad83) {
     entries.push(['NAD83 → WGS84 for the map', `NAD83(2011) → ITRF2014 → ITRF2020 (≈ WGS84 G2296)`]);
@@ -121,6 +145,7 @@ export function detectCrs(root: Element): CrsInfo {
     distanceUnits,
     projection: chosen,
     adjustment,
+    scaleFactor,
     nad83,
     datumChain,
     entries,

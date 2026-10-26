@@ -346,7 +346,7 @@ export function parseRw5(text: string, options: Rw5Options = {}): JxlDocument {
   const points: JxlPoint[] = drafts.map((d, index) => toPoint(d, index, scale));
   const localization = localize(points, projection.proj4);
 
-  const crs = rw5Crs(projection, units, mode.units, localization);
+  const crs = rw5Crs(projection, units, mode.units, localization, mo?.fields.has('SF') ? mode.scale : undefined);
   const gridOnlyCount = points.filter((p) => p.coords.lat === undefined && p.coords.north !== undefined).length;
   return {
     points,
@@ -624,7 +624,13 @@ export function fitSimilarity(pairs: { from: readonly [number, number]; to: read
   return { apply, rms, scale: Math.hypot(a, b), rotation: Math.atan2(b, a) / RAD };
 }
 
-function rw5Crs(projection: NonNullable<Rw5Options['projection']>, units: Rw5Units, fileUnits: Rw5Units | undefined, loc: Localization | undefined): CrsInfo {
+function rw5Crs(
+  projection: NonNullable<Rw5Options['projection']>,
+  units: Rw5Units,
+  fileUnits: Rw5Units | undefined,
+  loc: Localization | undefined,
+  scale: number | undefined,
+): CrsInfo {
   // GRS80 grids in North America are NAD83; anything else is left unshifted.
   const nad83 = /ellps=GRS80|NAD83/i.test(projection.proj4) || projection.label.includes('NAD83');
   const entries: [string, string][] = [
@@ -646,6 +652,8 @@ function rw5Crs(projection: NonNullable<Rw5Options['projection']>, units: Rw5Uni
     epochs: [],
     distanceUnits: UNIT_LABELS[units],
     projection,
+    // Distances measured on the ground were multiplied by it to put them on the grid.
+    scaleFactor: scale !== undefined ? { value: scale, name: 'scale factor (SF in the MO record)' } : undefined,
     nad83,
     datumChain: nad83 ? NAD83_TO_ITRF2020 : [],
     entries,

@@ -29,7 +29,7 @@ import {
   repin,
   type Placement,
 } from './placement';
-import { formatProp, latLonDms, type Prop, type PropGroup, type Unit } from './properties';
+import { formatProp, latLonDms, unitOf, type Prop, type PropGroup, type Unit } from './properties';
 import { esc, formatBytes } from './util';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
@@ -1034,7 +1034,7 @@ function renderLineDetail(el: HTMLElement, line: LineFigure) {
       noun: 'line',
       heading: `<span class="line-swatch" style="background:${esc(color)}"></span><span class="name">${esc(line.code)}</span>${props.description ? ` <span class="desc">${esc(props.description)}</span>` : ''}`,
     })}
-    ${groupsHtml(lineGroups(line, linework!, doc!.points, library, unit), unit)}
+    ${groupsHtml(lineGroups(line, linework!, doc!.points, library, unit, doc!.crs.scaleFactor), unit)}
   `;
 }
 
@@ -1056,7 +1056,12 @@ function detailHead(h: { back: string; backTitle: string; position: string; prev
 function groupsHtml(groups: PropGroup[], unit: Unit): string {
   return groups
     .filter((g) => g.props.length)
-    .map((g) => `<details class="group" open><summary>${esc(g.title)}</summary><table class="kv">${g.props.map((prop) => propRow(prop, unit)).join('')}</table></details>`)
+    .map(
+      (g) =>
+        `<details class="group" open><summary>${esc(g.title)}</summary><table class="kv">${g.props.map((prop) => propRow(prop, unit)).join('')}</table>${
+          g.note ? `<p class="group-note">${esc(g.note)}</p>` : ''
+        }</details>`,
+    )
     .join('');
 }
 
@@ -1107,10 +1112,7 @@ function coordinateGroup(p: JxlPoint): PropGroup {
 }
 
 function jobUnit(): Unit {
-  const u = (doc?.crs.distanceUnits ?? '').toLowerCase();
-  if (u.includes('survey')) return { label: 'sft', metres: 1200 / 3937 };
-  if (u.includes('feet') || u.includes('foot')) return { label: 'ift', metres: 0.3048 };
-  return { label: 'm', metres: 1 };
+  return unitOf(doc?.crs.distanceUnits);
 }
 
 function renderMetadata() {
