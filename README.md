@@ -38,7 +38,9 @@ jobs/<jobName>/<jobName>.jxl          the latest upload of each job
 
 Uploading the same job again overwrites its file, so every field visit is a commit and git history holds the versions. The JXL and the updated index are written in one commit, and an upload identical to the last one is skipped.
 
-The first **Upload** on a device asks for the repo and a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new) with access to it and **Contents: Read and write**, checks the token can write there, then uploads. Both are kept in that browser only. Public repos can be browsed without a token. More repos can be added under **Jobs → Repos and GitHub token**. **Copy setup link** makes a link that sets up another device, such as the controller, with the same repos (and the token, if you tick the box).
+To upload, tap **Sign in with GitHub to upload**, approve OpenFieldView on GitHub, and pick a repo from the list. Nothing is typed. The repo is remembered, so after that it's one **Upload** button (with **Change** to pick another). OpenFieldView signs in through a GitHub App, so it only sees the repos you choose to give it; **Give OpenFieldView access to it on GitHub** under the list adds more. More repos can be shown on the Jobs tab under **GitHub account and repos**. Public repos there can be browsed without signing in.
+
+Sign-in needs a one-time setup by whoever hosts the site: a GitHub App and a small Cloudflare Worker ([`worker/auth.js`](worker/auth.js)) that swaps GitHub's sign-in code for a token, since that step needs a secret a static site can't hold. Step-by-step instructions are in [docs/github-sign-in.md](docs/github-sign-in.md).
 
 ## Positions
 

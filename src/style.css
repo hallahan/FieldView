@@ -154,17 +154,15 @@ select {
   border: 1px solid var(--border); border-radius: 6px; max-width: 50%;
 }
 button.primary { background: var(--accent); color: #fff; border: 1px solid var(--accent); }
-.actions, .save-controls, .inline-form { display: flex; gap: 6px; flex-wrap: wrap; }
-.actions button, .save-controls button, .inline-form button, #copy-link {
+.actions, .save-controls { display: flex; gap: 6px; flex-wrap: wrap; }
+.actions button, .save-controls button {
   padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg);
 }
 .actions button.primary, .save-controls button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
 button:disabled { opacity: .6; cursor: default; }
-.save-controls select { flex: 1; max-width: none; }
-.inline-form input {
-  flex: 1; min-width: 0; padding: 6px 8px; font: inherit; color: var(--fg);
-  background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
-}
+.save-controls { flex-wrap: nowrap; }
+#save-btn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#change-repo { flex-shrink: 0; }
 #save-row { display: flex; flex-direction: column; gap: 6px; }
 #save-status:empty, #jobs-status:empty { display: none; }
 #jobs-status { padding: 8px 10px; background: var(--panel); border-radius: 6px; }
@@ -194,13 +192,22 @@ a { color: var(--accent); }
 .tag.error { background: #ffe3e3; color: #c92a2a; }
 #library-settings summary { padding: 6px 0; }
 #settings-body { display: flex; flex-direction: column; gap: 10px; padding-top: 8px; }
-.connect { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
-.connect p { margin: 0; }
-.connect label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
-.connect input {
-  padding: 6px 8px; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+button.github { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 14px; border-radius: 6px; font-weight: 600; }
+#save-row > button.github, #settings-body > button.github { align-self: stretch; }
+.account { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.account img { border-radius: 50%; }
+.account .link { margin-left: auto; }
+.picker { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+.picker p { margin: 0; }
+.picker-title { font-weight: 600; }
+.picker-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 50vh; overflow-y: auto; }
+.picker-list button {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; text-align: left; font: inherit;
+  color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
 }
-.setup-link { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.picker-list button:hover:not(:disabled) { border-color: var(--accent); }
+.picker-list .repo-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+#add-repo-btn, .picker .actions button { padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); }
 .map-error { margin: 40px auto; max-width: 420px; padding: 16px; text-align: center; color: var(--muted); }
 
 /* Touch screens (phones, the controller): bigger targets, no zoom-on-focus. */
@@ -218,8 +225,8 @@ a { color: var(--accent); }
   .detail-nav button { padding: 10px 16px; }
   details.group > summary { padding: 12px 0 6px; }
   .maplibregl-ctrl-group button { width: 40px; height: 40px; }
-  #views button, .actions button, .save-controls button, .inline-form button, #copy-link, select { padding: 11px 14px; }
-  .inline-form input, .connect input { font-size: 16px; padding: 10px; }
+  #views button, .actions button, .save-controls button, button.github, #add-repo-btn, .picker .actions button, select { padding: 11px 14px; }
+  .picker-list button { padding: 13px 12px; }
   #job-list li { padding: 12px 6px; }
   .version-list button { padding: 10px 12px; }
   .repo-list button { font-size: 26px; padding: 0 8px; }
