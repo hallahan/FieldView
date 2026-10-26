@@ -49,11 +49,13 @@ interface Options {
   setSheet: (expanded: boolean) => void;
   /** Whether the viewer's linework toggle is on. */
   showLines: () => boolean;
+  /** After switching between the viewer and the Jobs map. */
+  viewChanged: () => void;
 }
 
 const PIN = '#1c7ed6';
 
-export function initJobs({ map, open, isSheet, setSheet, showLines }: Options) {
+export function initJobs({ map, open, isSheet, setSheet, showLines, viewChanged }: Options) {
   const settings: Settings = loadSettings();
   let repos: RepoState[] = [];
   let loadedOnce = false;
@@ -617,6 +619,7 @@ export function initJobs({ map, open, isSheet, setSheet, showLines }: Options) {
       map.setLayoutProperty(layer.id, 'visibility', on ? 'visible' : 'none');
     }
     show(view === 'jobs');
+    viewChanged();
   }
   document.querySelectorAll<HTMLButtonElement>('#views button').forEach((b) =>
     b.addEventListener('click', () => showView(b.dataset.view as 'viewer' | 'jobs')),

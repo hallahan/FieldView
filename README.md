@@ -78,7 +78,11 @@ Imagery itself is often a metre or more out. On the satellite basemap, **Align**
 
 ### Jobs in assumed coordinates
 
-A total station job started on an assumed system (say 10000, 10000, with an assumed basis of bearing) has no position on the earth. OpenFieldView offers **Place on the map** for any job whose points all come from grid coordinates. Pan and zoom until the target sits where the job goes and tap **Put it here**. Then drag the job into position and turn the handle (or type the rotation in decimal degrees or DMS) until it lines up with the imagery. Tapping a point makes it the pivot, so you can pin one known point and turn the job about it. On a keyboard, the arrow keys nudge the job and `[` `]` turn it a minute of arc (Shift for ten).
+A total station job started on an assumed system (say 10000, 10000, with an assumed basis of bearing) has no position on the earth. There are two ways to look at one, and the choice is kept on the device for each job.
+
+**In its own coordinates.** This is how such a job opens until it has been placed. It is drawn in its own northings and eastings on a plain off-white background, with no streets or imagery, under a grid of round values labelled in the job's units (N 10000, E 10050, …). The scale bar stays true. Lat/long isn't shown, since there isn't one.
+
+**Placed on the map.** OpenFieldView offers **Place on the map** for any job whose points all come from grid coordinates. Pan and zoom until the target sits where the job goes and tap **Put it here**. Then drag the job into position and turn the handle (or type the rotation in decimal degrees or DMS) until it lines up with the imagery. Tapping a point makes it the pivot, so you can pin one known point and turn the job about it. On a keyboard, the arrow keys nudge the job and `[` `]` turn it a minute of arc (Shift for ten).
 
 The rotation is the angle added to the job's bearings to give true bearings. The grid is laid on a plane tangent to the ellipsoid at the pin, so distances and angles stay as measured. The placement is kept on the device for each job and is written to the job's entry in `index.geojson` when it's uploaded, so the Jobs map and other devices see it too. **Start over** removes it. The sample link "or one in assumed coordinates" opens a synthetic job to try it on.
 

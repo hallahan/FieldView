@@ -83,6 +83,12 @@ button.link { background: none; border: none; color: var(--link); padding: 0; al
 #projection p { margin: 0 0 8px; }
 #place-offer { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
 #place-offer button { padding: 7px 14px; border-radius: 6px; font: 600 15px var(--font-sans); }
+.place-choices { display: flex; flex-wrap: wrap; gap: 8px; }
+#local-start { border: 1px solid var(--border); background: var(--bg); color: var(--fg); }
+/* A job in its own coordinates: no basemaps to switch between, nowhere to locate. */
+#local-badge { display: none; align-items: center; padding: 6px 12px; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,.3); background: #404d45; color: #fff; font: 600 14px var(--font-sans); white-space: nowrap; }
+.local-view #local-badge { display: flex; }
+.local-view #basemap-toggle, .local-view #align-imagery, .local-view .maplibregl-ctrl-geolocate { display: none !important; }
 #proj-form { display: flex; gap: 6px; }
 #units-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 #units-row[hidden] { display: none; }
@@ -296,7 +302,8 @@ button.github { display: inline-flex; align-items: center; justify-content: cent
   #points-table td { padding: 11px 6px; }
   table.kv th, table.kv td { padding: 7px 6px; }
   #basemap-toggle button { padding: 10px 14px; }
-  #align-imagery, #place-job { padding: 10px 14px; }
+  #align-imagery, #place-job, #local-badge { padding: 10px 14px; }
+  #place-offer button { padding: 11px 16px; }
   #align-bar, #place-bar { top: 62px; }
   #place-rotation { font-size: 16px; padding: 9px 10px; }
   .place-pin .pin-knob { left: -24px; top: -136px; width: 48px; height: 48px; }

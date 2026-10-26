@@ -20,8 +20,12 @@ export interface Coordinates {
   north?: number;
   east?: number;
   elevation?: number;
-  /** Where the lat/lon came from: the file, the grid, a GPS localization, or placed by hand on the map. */
-  source?: 'WGS84' | 'ECEF' | 'Grid' | 'Localized' | 'Placed';
+  /**
+   * Where the lat/lon came from: the file, the grid, a GPS localization, or
+   * placed by hand on the map. `Local` is a stand-in for drawing a job in its
+   * own assumed coordinates, not a real position.
+   */
+  source?: 'WGS84' | 'ECEF' | 'Grid' | 'Localized' | 'Placed' | 'Local';
   /** Grid position was computed here from a total station observation. */
   reduced?: boolean;
   /** Where to draw the point on the basemap, after any datum shift. */

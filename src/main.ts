@@ -14,6 +14,7 @@ import { lineGroups, linesAtPoint } from './lineprops';
 import { gridFitsProjection, projectGrid, resolveProjection } from './projection';
 import { isRw5, parseRw5, UNIT_LABELS, type Rw5Units } from './rw5';
 import { featureGroups } from './featureprops';
+import { initLocalGrid, localStyle } from './localgrid';
 import { groundDelta, IMAGERY_TILES, initImagery, isZero, type ImageryOffset } from './imagery';
 import {
   applyPlacement,
@@ -89,6 +90,10 @@ let colorBy: 'code' | 'type' = 'code';
 let alignToImagery = readPref('alignToImagery') !== 'false';
 let showLines = readPref('showLines') !== 'false';
 let basemap = 'streets';
+/** The open job is in assumed coordinates: off the map until placed by hand. */
+let assumedJob = false;
+/** Showing it in its own coordinates on a plain background rather than on the map. */
+let localView = false;
 let library: FeatureLibrary | undefined;
 /** Resolves once the stored libraries have been listed and the last one opened. */
 let libraryReady: Promise<void> = Promise.resolve();
@@ -128,8 +133,11 @@ const jobs = initJobs({
   isSheet: () => isSheet(),
   setSheet: (expanded) => setSheet(expanded),
   showLines: () => showLines,
+  // The Jobs map always needs real streets or imagery under its pins.
+  viewChanged: () => applyStyle(),
 });
 const lineMap = initLineMap(map);
+const localGrid = initLocalGrid(map);
 const imagery = initImagery(map, 'imagery');
 
 // Layers are re-added whenever the basemap style is swapped.
@@ -137,6 +145,7 @@ let styleReady = false;
 map.on('style.load', () => {
   styleReady = true;
   imagery.styleLoaded();
+  localGrid.addLayers();
   addPointLayers();
   refreshLines();
   jobs.addLayers();
@@ -483,7 +492,8 @@ function load(text: string, name: string, size: number, gridDef?: { input: strin
   // A job in assumed coordinates goes where it was placed by hand, unless a
   // coordinate system has just been chosen for it.
   setPlacing(false);
-  placement = gridDef || !canPlace(doc.points) ? undefined : newer(origin?.placement, readPlacement());
+  const placeable = !gridDef && canPlace(doc.points);
+  placement = placeable ? newer(origin?.placement, readPlacement()) : undefined;
   if (placement) {
     doc.placement = placement;
     applyPlacement(doc.points, placement);
@@ -506,6 +516,15 @@ function load(text: string, name: string, size: number, gridDef?: { input: strin
       if (gridDef) projectionError = `Couldn't use that coordinate system: ${esc((err as Error).message)}`;
     }
   }
+  // A job still off the map in assumed coordinates, or placed by hand, can
+  // instead be shown in its own coordinates. That's where one opens unless
+  // it's been placed or the crew chose the map for it before.
+  assumedJob = placeable && (!!placement || doc.points.some((p) => p.coords.lat === undefined && p.coords.north !== undefined));
+  const view = readPref(viewKey());
+  localView = assumedJob && (view ? view === 'local' : !placement);
+  if (localView) showLocal();
+  else localGrid.set(undefined, 1);
+  applyStyle();
   statusNote = { name, projected: projected ? `${projected} grid points placed using ${projectionLabel}.` : '' };
   renderLoadStatus();
   $('#align-row').hidden = !doc.crs.nad83;
@@ -538,14 +557,16 @@ let gridAssumed = false;
  */
 function renderProjection() {
   if (!doc) return;
-  const remaining = doc.points.filter((p) => p.coords.lat === undefined && p.coords.north !== undefined).length;
+  const remaining = doc.points.filter((p) => p.coords.north !== undefined && (p.coords.lat === undefined || p.coords.source === 'Local')).length;
   const rw5 = doc.format === 'rw5';
-  $('#projection').hidden = !rw5 && remaining === 0;
+  $('#projection').hidden = !rw5 && remaining === 0 && !assumedJob;
   $('#units-row').hidden = !rw5;
   $<HTMLSelectElement>('#units-select').value = Object.entries(UNIT_LABELS).find(([, v]) => v === doc?.crs.distanceUnits)?.[0] ?? 'usft';
   const n = `${remaining} point${remaining === 1 ? '' : 's'}`;
   let text: string;
-  if (placement) {
+  if (localView) {
+    text = `<strong>Assumed coordinates.</strong> ${n} are drawn in the job's own northings and eastings on a plain background.`;
+  } else if (placement) {
     text = `Placed by hand on the map. If you know the job's coordinate system, apply it instead.`;
   } else if (gridAssumed) {
     text = `<strong>These look like assumed coordinates</strong>, so ${n} aren't on the map. They don't fall inside the chosen coordinate system's zone.`;
@@ -557,12 +578,21 @@ function renderProjection() {
     text = `${n} only have grid coordinates. Choose their coordinate system to place them on the map.`;
   }
   $('#proj-text').innerHTML = text;
-  // Placed points sit where they were put on the imagery, so there's nothing to shift.
-  $('#align-row').hidden = !doc.crs.nad83 || !!placement;
-  $('#place-offer').hidden = !!placement || !placeOffered();
-  $('#place-offer-text').textContent = gridAssumed
-    ? 'Drag and turn the job into place on the map instead.'
-    : 'In assumed coordinates, like 10000, 10000? Drag and turn the job into place on the map instead.';
+  // Two ways to show a job in assumed coordinates: placed on the map, or in
+  // its own coordinates on a plain background.
+  $('#place-offer').hidden = !assumedJob;
+  $('#place-offer-text').textContent = localView
+    ? placement
+      ? 'It has also been placed on the map.'
+      : 'To see it over streets or imagery, drag and turn it into place on the map.'
+    : placement
+      ? 'Or leave the map and show it in its own coordinates.'
+      : 'Drag and turn it into place on the map, or show it in its own coordinates on a plain background.';
+  const place = $<HTMLButtonElement>('#place-start');
+  place.hidden = !localView && !!placement;
+  place.textContent = localView && placement ? 'Show on the map' : 'Place on the map';
+  $('#local-start').hidden = localView;
+  $('#align-row').hidden = !doc.crs.nad83 || !!placement || localView;
   renderPlace();
 }
 
@@ -571,16 +601,18 @@ let statusNote = { name: '', projected: '' };
 
 function renderLoadStatus() {
   if (!doc) return;
-  const mapped = doc.points.filter((p) => p.coords.lat !== undefined).length;
+  const local = doc.points.filter((p) => p.coords.source === 'Local').length;
+  const mapped = doc.points.filter((p) => p.coords.lat !== undefined).length - local;
   const placed = doc.points.filter((p) => p.coords.source === 'Placed').length;
   const types = (['GNSS', 'Total station', 'Computed', 'Keyed in'] as ObservationType[])
     .map((t) => [t, doc!.points.filter((p) => p.type === t).length] as const)
     .filter(([, n]) => n)
     .map(([t, n]) => `${n} ${t === 'GNSS' ? t : t.toLowerCase()}`);
   setStatus(
-    `<strong>${esc(statusNote.name)}</strong>: ${doc.points.length} points${types.length ? ` (${types.join(', ')})` : ''}, ${mapped} on the map.` +
+    `<strong>${esc(statusNote.name)}</strong>: ${doc.points.length} points${types.length ? ` (${types.join(', ')})` : ''}${local ? '' : `, ${mapped} on the map`}.` +
       (statusNote.projected ? `<br><span class="muted">${esc(statusNote.projected)}</span>` : '') +
-      (placed ? `<br><span class="muted">${placed} points in assumed coordinates, placed by hand.</span>` : ''),
+      (placed ? `<br><span class="muted">${placed} points in assumed coordinates, placed by hand.</span>` : '') +
+      (local ? `<br><span class="muted">${local} points shown in their own assumed coordinates.</span>` : ''),
   );
 }
 
@@ -789,7 +821,7 @@ function alignPoints() {
     const c = p.coords;
     if (c.lat === undefined || c.lon === undefined) continue;
     // Placed by eye on the imagery, so already where it should be drawn.
-    if (shift && c.source !== 'Placed') {
+    if (shift && c.source !== 'Placed' && c.source !== 'Local') {
       const w = nad83ToWgs84(c.lat, c.lon, c.height ?? 0, mapEpoch, doc.crs.datumChain);
       c.mapLat = w.lat;
       c.mapLon = w.lon;
@@ -1092,7 +1124,8 @@ function coordinateGroup(p: JxlPoint): PropGroup {
   length('Easting', c.east);
   length('Elevation', c.elevation);
   if (c.reduced) props.push({ label: 'Grid from', value: 'Reduced from the total station observation by OpenFieldView' });
-  if (c.lat !== undefined) {
+  // A job shown in its own coordinates has no real lat/long.
+  if (c.lat !== undefined && c.source !== 'Local') {
     const deg = (v: number) => `<span class="sub-value">${v.toFixed(9)}°</span>`;
     props.push({ label: 'Latitude', value: `${esc(latLonDms(c.lat, 'N', 'S'))}${deg(c.lat)}`, kind: 'html' });
     props.push({ label: 'Longitude', value: `${esc(latLonDms(c.lon!, 'E', 'W'))}${deg(c.lon!)}`, kind: 'html' });
@@ -1146,15 +1179,27 @@ function table(title: string, entries: [string, string][]) {
 document.querySelectorAll<HTMLButtonElement>('#basemap-toggle button').forEach((b) =>
   b.addEventListener('click', () => {
     document.querySelectorAll('#basemap-toggle button').forEach((x) => x.classList.toggle('active', x === b));
-    styleReady = false;
     basemap = b.dataset.basemap!;
-    lineMap.setBasemap(basemap);
-    map.setStyle(BASEMAPS[basemap]);
+    applyStyle();
     if (basemap !== 'satellite') setAligning(false);
     renderAlign();
     renderPlace();
   }),
 );
+
+/** The style the map shows: the chosen basemap, or plain for a job in its own coordinates. */
+let styleShown = 'streets';
+function applyStyle() {
+  const local = localView && !jobs.isActive();
+  document.body.classList.toggle('local-view', local);
+  const want = local ? 'local' : basemap;
+  if (want === styleShown) return;
+  styleShown = want;
+  styleReady = false;
+  // Linework colours are tuned for a light background or for imagery.
+  lineMap.setBasemap(local ? 'streets' : basemap);
+  map.setStyle(local ? localStyle(GLYPHS) : BASEMAPS[basemap]);
+}
 
 // ---------------------------------------------------------------- imagery alignment
 
@@ -1220,7 +1265,7 @@ function syncMapLock() {
 
 function renderAlign() {
   const button = $<HTMLButtonElement>('#align-imagery');
-  button.hidden = basemap !== 'satellite' || !doc;
+  button.hidden = basemap !== 'satellite' || !doc || localView;
   button.classList.toggle('active', aligning);
   button.classList.toggle('moved', !!imageryOffset);
   $('#align-bar').hidden = !aligning;
@@ -1356,6 +1401,7 @@ function redrawPlaced() {
 function setPlacing(on: boolean) {
   if (on && !doc) return;
   if (on) setAligning(false);
+  if (on && localView) setLocalView(false);
   placing = on;
   placeDrag = undefined;
   renderPlace();
@@ -1374,7 +1420,7 @@ function pivotPoint(): JxlPoint | undefined {
  */
 function placeOffered(): boolean {
   if (!doc || !canPlace(doc.points)) return false;
-  return !!placement || doc.points.some((p) => p.coords.lat === undefined && p.coords.north !== undefined);
+  return !!placement || doc.points.some((p) => p.coords.north !== undefined && (p.coords.lat === undefined || p.coords.source === 'Local'));
 }
 
 function renderPlace() {
@@ -1454,8 +1500,14 @@ function pivotAt(at: maplibregl.Point) {
 
 $('#place-job').addEventListener('click', () => setPlacing(!placing));
 $('#place-start').addEventListener('click', () => {
-  setPlacing(true);
+  if (localView && placement) setLocalView(false);
+  else setPlacing(true);
   // On a phone, get the panel out of the way of the map.
+  setSheet(false);
+});
+$('#local-start').addEventListener('click', () => {
+  setPlacing(false);
+  setLocalView(true);
   setSheet(false);
 });
 $('#place-done').addEventListener('click', () => setPlacing(false));
@@ -1543,4 +1595,47 @@ function placeKey(e: KeyboardEvent): boolean {
   }
   e.preventDefault();
   return true;
+}
+
+// ---------------------------------------------------------------- assumed coordinates
+
+// The other way to look at a job in assumed coordinates: in its own
+// northings and eastings on a plain background, with no streets or imagery.
+// The choice is kept on this device for each job.
+
+function viewKey() {
+  return `assumedView.${jobKey()}`;
+}
+
+/** Lay the job out in its own coordinates around 0°, 0°, with its grid. */
+function showLocal() {
+  if (!doc) return;
+  removePlacement(doc.points);
+  const frame = initialPlacement(doc.points, 0, 0);
+  if (frame) applyPlacement(doc.points, frame, 'Local');
+  localGrid.set(frame, jobUnit().metres);
+}
+
+function setLocalView(on: boolean) {
+  if (!doc || on === localView) return;
+  localView = on;
+  writePref(viewKey(), on ? 'local' : 'map');
+  if (on) {
+    showLocal();
+  } else {
+    removePlacement(doc.points);
+    localGrid.set(undefined, 1);
+    if (placement) applyPlacement(doc.points, placement);
+  }
+  applyStyle();
+  alignPoints();
+  refreshMap(true);
+  rebuildLinework();
+  renderLoadStatus();
+  renderProjection();
+  renderAlign();
+  renderLibrary();
+  renderTable();
+  renderDetail();
+  renderMetadata();
 }

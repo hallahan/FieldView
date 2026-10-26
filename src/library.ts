@@ -11,7 +11,7 @@
 import type { Feature, FeatureCollection, Point } from 'geojson';
 import { gitBlobSha, type GitHub } from './github';
 import type { JxlDocument } from './jxl';
-import { samePlacement, type Placement } from './placement';
+import { placeGrid, samePlacement, type Placement } from './placement';
 
 export const INDEX_PATH = 'index.geojson';
 
@@ -73,7 +73,13 @@ export function jobPath(name: string, format: JxlDocument['format'] = 'jxl'): st
 
 /** Mean position and extent of what was measured, leaving out deleted points and far-off keyed-in control. */
 export function footprint(doc: JxlDocument): { center: [number, number]; bbox: [number, number, number, number] } | undefined {
-  const located = doc.points.filter((p) => p.coords.lat !== undefined && p.coords.lon !== undefined && !p.deleted);
+  // A job shown in its own assumed coordinates is on the earth only where it was placed, if anywhere.
+  const where = (p: JxlDocument['points'][number]): [number, number] | undefined => {
+    const c = p.coords;
+    if (c.source === 'Local') return doc.placement && placeGrid(doc.placement, c.north!, c.east!);
+    return c.lat !== undefined && c.lon !== undefined ? [c.lat, c.lon] : undefined;
+  };
+  const located = doc.points.filter((p) => where(p) && !p.deleted);
   const measured = located.filter((p) => p.type !== 'Keyed in');
   const pts = measured.length ? measured : located;
   if (!pts.length) return undefined;
@@ -81,8 +87,7 @@ export function footprint(doc: JxlDocument): { center: [number, number]; bbox: [
   let lat = 0;
   const bbox: [number, number, number, number] = [Infinity, Infinity, -Infinity, -Infinity];
   for (const p of pts) {
-    const x = p.coords.lon!;
-    const y = p.coords.lat!;
+    const [y, x] = where(p)!;
     lon += x;
     lat += y;
     bbox[0] = Math.min(bbox[0], x);
