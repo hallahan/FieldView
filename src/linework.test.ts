@@ -15,19 +15,20 @@ const LON0 = -121.5;
 const M_LAT = 1 / 111195;
 const M_LON = M_LAT / Math.cos((LAT0 * Math.PI) / 180);
 
+// Only the fields linework reads, so the helper keeps compiling as JxlPoint
+// gains fields.
+type LineworkInput = Pick<JxlPoint, 'index' | 'name' | 'code' | 'coords' | 'deleted'>;
+
 function points(rows: [string, string, number, number][]): JxlPoint[] {
-  return rows.map(([name, code, e, n], index) => ({
-    index,
-    id: String(index),
-    name,
-    code,
-    coords: { lat: LAT0 + n * M_LAT, lon: LON0 + e * M_LON, mapLat: LAT0 + n * M_LAT, mapLon: LON0 + e * M_LON },
-    origin: 'Reductions',
-    type: 'GNSS',
-    deleted: false,
-    attributes: {},
-    features: [],
-  }));
+  return rows.map(
+    ([name, code, e, n], index): LineworkInput => ({
+      index,
+      name,
+      code,
+      coords: { lat: LAT0 + n * M_LAT, lon: LON0 + e * M_LON, mapLat: LAT0 + n * M_LAT, mapLon: LON0 + e * M_LON },
+      deleted: false,
+    }),
+  ) as JxlPoint[];
 }
 
 /** Back to local metres, rounded to the millimetre. */
