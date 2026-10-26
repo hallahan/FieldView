@@ -61,7 +61,8 @@ h3 { margin: 16px 0 6px; font: 600 12px var(--font-sans); text-transform: upperc
 #dropzone span { color: var(--muted); font-size: 13px; }
 /* Once a file is open, shrink the picker to a single row. */
 .loaded #dropzone { flex-direction: row; justify-content: center; padding: 10px; border-style: solid; }
-.loaded #dropzone span, .loaded #sample-btn { display: none; }
+.loaded #dropzone span, .loaded .samples { display: none; }
+.samples { display: flex; flex-wrap: wrap; gap: 4px 18px; }
 button { font: inherit; cursor: pointer; }
 button.link { background: none; border: none; color: var(--link); padding: 0; align-self: flex-start; text-decoration: underline; }
 #status:empty { display: none; }
@@ -81,6 +82,9 @@ button.link { background: none; border: none; color: var(--link); padding: 0; al
 #projection { background: var(--panel); padding: 10px; border-radius: 6px; }
 #projection p { margin: 0 0 8px; }
 #proj-form { display: flex; gap: 6px; }
+#units-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+#units-row[hidden] { display: none; }
+#units-row select { flex: 1; min-width: 0; }
 input[type=search], #proj-input {
   flex: 1; width: 100%; padding: 6px 8px; font: inherit; color: var(--fg);
   background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
@@ -255,6 +259,7 @@ button.github { display: inline-flex; align-items: center; justify-content: cent
   .align-actions button { padding: 10px 16px; }
   #dropzone { padding: 22px; }
   .fxl-actions label.link, .fxl-actions button.link { padding: 6px 0; }
+  .samples button.link { padding: 6px 0; }
   .drop-hint { display: none; }
   .detail-nav { font-size: 15px; }
   .detail-nav button { padding: 10px 16px; }

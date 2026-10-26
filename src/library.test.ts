@@ -29,6 +29,7 @@ describe('helpers', () => {
   it('keeps job paths to safe characters', () => {
     expect(jobPath('25-050_GuardrailTopoNH4')).toBe('jobs/25-050_GuardrailTopoNH4/25-050_GuardrailTopoNH4.jxl');
     expect(jobPath('Walnut Creek Topo (sample)')).toBe('jobs/Walnut_Creek_Topo_sample_/Walnut_Creek_Topo_sample_.jxl');
+    expect(jobPath('Assumed Topo', 'rw5')).toBe('jobs/Assumed_Topo/Assumed_Topo.rw5');
   });
 
   it('puts the centroid inside the job', () => {

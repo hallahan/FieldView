@@ -20,7 +20,7 @@ export interface Coordinates {
   east?: number;
   elevation?: number;
   /** Where the lat/lon came from. */
-  source?: 'WGS84' | 'ECEF' | 'Grid';
+  source?: 'WGS84' | 'ECEF' | 'Grid' | 'Localized';
   /** Grid position was computed here from a total station observation. */
   reduced?: boolean;
   /** Where to draw the point on the basemap, after any datum shift. */
@@ -69,6 +69,8 @@ export interface JxlDocument {
   crs: CrsInfo;
   /** Attributes of the <JOBFile> root: jobName, TimeStamp, controllerSerialNumber, ... */
   job: Attrs;
+  /** Which kind of file this came from. Missing means JobXML. */
+  format?: 'jxl' | 'rw5';
 }
 
 export class JxlParseError extends Error {}
