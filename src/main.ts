@@ -11,6 +11,7 @@ import { parseJxl, type JxlDocument, type JxlPoint, type ObservationType } from 
 import { initJobs, type JobOrigin } from './jobs';
 import { buildLinework, parseCode, type Linework } from './linework';
 import { projectGrid, resolveProjection } from './projection';
+import { featureGroups } from './featureprops';
 import { formatProp, latLonDms, type PropGroup, type Unit } from './properties';
 import { esc, formatBytes } from './util';
 
@@ -727,13 +728,7 @@ function renderDetail() {
   const at = listed.indexOf(p.index);
   const groups: PropGroup[] = [
     coordinateGroup(p),
-    ...p.features.map((f) => ({
-      title: p.features.length > 1 || f.name !== p.code.split(/\s+/)[0] ? `Attributes · ${f.name}` : 'Attributes',
-      // Unfilled photo/file/text fields are common and only add noise.
-      props: Object.entries(f.attributes)
-        .filter(([, v]) => v !== '')
-        .map(([label, value]) => ({ label, value })),
-    })),
+    ...featureGroups(p, library),
     pointGroup(p),
     ...p.observation,
   ];
@@ -754,13 +749,15 @@ function renderDetail() {
       .filter((g) => g.props.length)
       .map(
         (g) => `<details class="group" open><summary>${esc(g.title)}</summary><table class="kv">${g.props
-          .map((prop) => `<tr><th>${esc(prop.label)}</th><td>${prop.kind === 'html' ? String(prop.value) : esc(formatProp(prop, unit))}</td></tr>`)
+          .map((prop) => `<tr${prop.hint ? ' class="has-hint"' : ''}><th>${prop.hint ? `<span class="label">${esc(prop.label)}</span>` : esc(prop.label)}${prop.hint ? `<span class="hint">${esc(prop.hint)}</span>` : ''}</th><td>${prop.kind === 'html' ? String(prop.value) : esc(formatProp(prop, unit))}</td></tr>`)
           .join('')}</table></details>`,
       )
       .join('')}
     <details class="group"><summary>All attributes (${Object.keys(p.attributes).length})</summary>${table('', Object.entries(p.attributes))}</details>
   `;
   el.querySelector('.back')!.addEventListener('click', showList);
+  // Tap an attribute's name to read the library's description of it.
+  el.querySelectorAll('tr.has-hint').forEach((tr) => tr.addEventListener('click', () => tr.classList.toggle('show-hint')));
   el.querySelectorAll<HTMLButtonElement>('[data-step]').forEach((b) => b.addEventListener('click', () => step(Number(b.dataset.step) as 1 | -1)));
 }
 

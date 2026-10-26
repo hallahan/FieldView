@@ -125,6 +125,11 @@ details.group > summary {
 }
 details.group table.kv th { width: 42%; }
 .sub-value { display: block; font-size: 13px; color: var(--muted); }
+.warn-text { color: #b45309; font-family: var(--font-sans); }
+tr.has-hint th { cursor: help; }
+tr.has-hint .label { text-decoration: underline dotted; text-underline-offset: 3px; }
+.hint { display: none; margin-top: 4px; font-size: 12px; font-weight: 400; text-decoration: none; }
+tr.show-hint .hint { display: block; }
 .no-pos { font: 11px var(--font-sans); color: var(--muted); margin-left: 6px; }
 .code { font-family: var(--font-mono); font-size: 13px; font-weight: 500; padding: 1px 6px; border-radius: 4px; background: var(--border); }
 .warn { color: #b45309; margin: 8px 0 0; }

@@ -10,6 +10,8 @@ export interface Prop {
   value: string | number;
   /** length: metres, shown in the job's units. angle: degrees, shown as DMS. html: markup built by the app. */
   kind?: 'length' | 'angle' | 'html';
+  /** What the field means, such as the FXL attribute description. */
+  hint?: string;
 }
 
 export interface PropGroup {
