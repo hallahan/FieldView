@@ -37,6 +37,23 @@
             <span>Shift NAD83 to WGS84 to line up with the imagery <span id="align-shift" class="muted"></span></span>
           </label>
 
+          <section id="fxl-row">
+            <input id="fxl-input" type="file" hidden />
+            <div class="fxl-head">
+              <label for="fxl-select">Feature library</label>
+              <select id="fxl-select"></select>
+            </div>
+            <div id="fxl-status"></div>
+            <div class="fxl-actions">
+              <label for="fxl-input" class="link">Add a library (.fxl)</label>
+              <button id="fxl-clear" class="link" hidden>Remove from this device</button>
+            </div>
+            <label id="lines-row" class="check">
+              <input id="lines-toggle" type="checkbox" checked />
+              <span>Draw linework from feature codes <span id="lines-count" class="muted"></span></span>
+            </label>
+          </section>
+
           <section id="projection" hidden>
             <p><span id="grid-count"></span> points only have grid coordinates. Choose their coordinate system to place them on the map.</p>
             <form id="proj-form">
@@ -89,7 +106,7 @@
           <button data-basemap="streets" class="active">Streets</button>
           <button data-basemap="satellite">Satellite</button>
         </div>
-        <div id="drop-overlay" hidden>Drop .jxl file to open</div>
+        <div id="drop-overlay" hidden>Drop a .jxl job or .fxl feature library</div>
       </main>
     </div>
     <script type="module" src="/src/main.ts"></script>
