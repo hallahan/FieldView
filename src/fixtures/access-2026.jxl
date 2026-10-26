@@ -79,6 +79,15 @@
             <ZoneName>California Epoch 2025.00 Zone 3</ZoneName>
             <DatumName>CA SRS Epoch 2025.00 (NAD83)</DatumName>
         </CoordinateSystemRecord>
+        <GPSEquipmentRecord ID="00000075" TimeStamp="2026-09-24T10:48:07">
+            <AntennaType>R12i Internal</AntennaType>
+            <AntennaMeasurementMethod>Bottom of antenna mount</AntennaMeasurementMethod>
+        </GPSEquipmentRecord>
+        <AntennaRecord ID="00000076" TimeStamp="2026-09-24T10:48:07">
+            <MeasuredHeight>2</MeasuredHeight>
+            <MeasurementType>Corrected</MeasurementType>
+            <GPSEquipmentID>00000075</GPSEquipmentID>
+        </AntennaRecord>
         <PointRecord ID="00000014" TimeStamp="2026-09-24T07:38:38">
             <Name>CTRL1</Name>
             <Code>CTRLP</Code>
@@ -108,6 +117,32 @@
             <ECEFDeltas><DeltaX>8091.7</DeltaX><DeltaY>4743.3</DeltaY><DeltaZ>10661.0</DeltaZ></ECEFDeltas>
             <RTK_Base>BASE</RTK_Base>
             <AntennaID>00000076</AntennaID>
+            <DeviceAxisOrientation>
+                <Type>InertialTiltComp</Type>
+                <Attitude><Pitch>3</Pitch><Roll>4</Roll><Yaw>-17.1</Yaw></Attitude>
+                <IMUAlignmentState>Fine</IMUAlignmentState>
+            </DeviceAxisOrientation>
+            <Precision><Horizontal>0.0096</Horizontal><Vertical>0.0141</Vertical></Precision>
+            <QualityControl1>
+                <NumberOfSatellites>24</NumberOfSatellites>
+                <NumGPSSVs>8</NumGPSSVs>
+                <NumGLONASSSVs>7</NumGLONASSSVs>
+                <NumGalileoSVs>9</NumGalileoSVs>
+                <NumBeiDouSVs>0</NumBeiDouSVs>
+                <PDOP>1.12</PDOP>
+                <HDOP>0.59</HDOP>
+                <NumberOfPositionsUsed>3</NumberOfPositionsUsed>
+                <StartTime><GPSWeek>2437</GPSWeek><Seconds>604799</Seconds></StartTime>
+                <EndTime><GPSWeek>2438</GPSWeek><Seconds>1</Seconds></EndTime>
+                <MonitorStatus>NotMonitored</MonitorStatus>
+                <RTCMAge>0.8</RTCMAge>
+                <Warnings>
+                    <ExcessTiltWarning>Yes</ExcessTiltWarning>
+                    <ExcessTiltAtStorage>No</ExcessTiltAtStorage>
+                    <PoorPrecisionsAtStorage>Yes</PoorPrecisionsAtStorage>
+                </Warnings>
+            </QualityControl1>
+            <Notes><Note>Old values BARB BL</Note></Notes>
         </PointRecord>
         <PointRecord ID="000003f6" TimeStamp="2026-09-24T12:42:09">
             <Name>1001</Name>

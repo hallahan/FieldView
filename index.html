@@ -52,18 +52,21 @@
           </nav>
 
           <section id="tab-points" class="tab" hidden>
-            <div class="points-tools">
-              <input id="search" type="search" placeholder="Filter: name, code, GNSS, TS" />
-              <div id="color-by" class="segmented" title="Colour points by">
-                <button data-color-by="code" class="active">Code</button>
-                <button data-color-by="type">Type</button>
+            <div id="point-list" class="tab">
+              <div class="points-tools">
+                <input id="search" type="search" placeholder="Filter by name or code" />
+                <div id="color-by" class="segmented" title="Colour points by">
+                  <button data-color-by="code" class="active">Code</button>
+                  <button data-color-by="type">Type</button>
+                </div>
               </div>
+              <table id="points-table">
+                <thead><tr><th>Name</th><th>Code</th></tr></thead>
+                <tbody></tbody>
+              </table>
             </div>
+            <!-- Properties of the selected point, shown in place of the list. -->
             <div id="point-detail" hidden></div>
-            <table id="points-table">
-              <thead><tr><th>Name</th><th>Code</th><th>Type</th></tr></thead>
-              <tbody></tbody>
-            </table>
           </section>
 
           <section id="tab-metadata" class="tab" hidden></section>

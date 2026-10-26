@@ -8,6 +8,7 @@ import { detectCrs, type CrsInfo } from './crs';
 import { applyPlaneAdjustment } from './datum';
 import { attrEntries, child, children, flatten, num, text_, type Attrs } from './xml';
 import { reduceTotalStation, type TsContext } from './totalstation';
+import { humanize, observationProperties, RecordIndex, type PropGroup } from './properties';
 
 export type { Attrs } from './xml';
 
@@ -45,6 +46,14 @@ export interface JxlPoint {
   attributes: Attrs;
   /** Feature attributes captured in the field (Features/Feature/Attribute). */
   features: { name: string; attributes: Attrs }[];
+  /** How it was measured, from the FieldBook record. */
+  method: string;
+  surveyMethod: string;
+  classification: string;
+  /** When the FieldBook record was stored (controller local time). */
+  stored: string;
+  /** Measurement and QC details, grouped for the properties panel. */
+  observation: PropGroup[];
 }
 
 export interface MetadataSection {
@@ -88,6 +97,7 @@ export function parseJxl(text: string, options: ParseOptions = {}): JxlDocument 
   const toGrid = gridDef ? proj4('EPSG:4326', gridDef) : undefined;
 
   const records = fieldBook ? children(fieldBook, 'PointRecord') : [];
+  const index = new RecordIndex(fieldBook);
   const recordsById = new Map<string, Element>();
   const recordsByName = new Map<string, Element>();
   for (const r of records) {
@@ -145,6 +155,7 @@ export function parseJxl(text: string, options: ParseOptions = {}): JxlDocument 
         deleted: false,
         attributes,
         features,
+        ...recordInfo(record ?? p, index, record),
       });
     }
   } else {
@@ -160,6 +171,7 @@ export function parseJxl(text: string, options: ParseOptions = {}): JxlDocument 
         deleted: isDeleted(r),
         attributes: flatten(r),
         features: parseFeatures(r),
+        ...recordInfo(r, index, r),
       });
     }
   }
@@ -337,6 +349,17 @@ function parseFeatures(record: Element): JxlPoint['features'] {
     out.push({ name: feature.getAttribute('Name') ?? text_(feature, 'Name'), attributes });
   }
   return out;
+}
+
+function recordInfo(el: Element, index: RecordIndex, record: Element | undefined) {
+  const field = (tag: string) => humanize(text_(el, tag) || (record ? text_(record, tag) : ''));
+  return {
+    method: field('Method'),
+    surveyMethod: field('SurveyMethod'),
+    classification: field('Classification'),
+    stored: record?.getAttribute('TimeStamp') ?? '',
+    observation: observationProperties(record, index),
+  };
 }
 
 function isDeleted(el: Element): boolean {
