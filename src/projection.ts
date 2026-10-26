@@ -20,14 +20,45 @@ export async function resolveProjection(input: string): Promise<string> {
   return def;
 }
 
-/** Metres per unit of the projection's linear unit. */
-function toMeter(def: string): number {
+/** Metres per unit of a proj4 definition. */
+export function toMeterOf(def: string): number {
   const toMeterParam = def.match(/\+to_meter=([\d.eE+-]+)/);
   if (toMeterParam) return Number(toMeterParam[1]);
   const units = def.match(/\+units=(\S+)/)?.[1];
   if (units === 'us-ft') return 1200 / 3937;
   if (units === 'ft') return 0.3048;
   return 1;
+}
+
+/**
+ * Whether grid-only points plausibly belong to a projection. Assumed
+ * coordinates such as N 5000, E 5000 un-project to somewhere far from the
+ * zone (State Plane puts them hundreds of miles out to sea), so they're left
+ * off the map instead of being drawn in the wrong place. Checks the middle
+ * point against the projection's origin; definitions without one pass.
+ */
+export function gridFitsProjection(points: JxlPoint[], def: string): boolean {
+  const grid = points.filter((p) => p.coords.north !== undefined && p.coords.east !== undefined && (!p.coords.source || p.coords.source === 'Grid'));
+  if (!grid.length || !def.startsWith('+')) return true;
+  const lon0 = Number(def.match(/\+lon_0=([-\d.eE+]+)/)?.[1] ?? NaN);
+  const lat0 = Number(def.match(/\+lat_0=([-\d.eE+]+)/)?.[1] ?? NaN);
+  const zone = Number(def.match(/\+zone=(\d+)/)?.[1] ?? NaN);
+  const originLon = Number.isFinite(lon0) ? lon0 : Number.isFinite(zone) ? zone * 6 - 183 : NaN;
+  if (!Number.isFinite(originLon)) return true;
+  const median = (vals: number[]) => vals.sort((a, b) => a - b)[Math.floor(vals.length / 2)];
+  const north = median(grid.map((p) => p.coords.north!));
+  const east = median(grid.map((p) => p.coords.east!));
+  const scale = toMeterOf(def);
+  try {
+    const [lon, lat] = proj4(def, 'EPSG:4326').forward([east / scale, north / scale]);
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) return false;
+    // Zones are a few degrees wide; leave room for UTM's 3° half-width and more.
+    if (Math.abs(lon - originLon) > 8) return false;
+    if (Number.isFinite(lat0) && lat0 !== 0 && Math.abs(lat - lat0) > 8) return false;
+    return Math.abs(lat) <= 85;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -39,7 +70,7 @@ function toMeter(def: string): number {
  */
 export function projectGrid(points: JxlPoint[], def: string, adjustment?: PlaneAdjustment): number {
   const transform = proj4(def, 'EPSG:4326');
-  const scale = def.startsWith('+') ? toMeter(def) : 1;
+  const scale = def.startsWith('+') ? toMeterOf(def) : 1;
   let n = 0;
   for (const p of points) {
     const c = p.coords;
