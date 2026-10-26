@@ -19,6 +19,8 @@ export interface Prop {
 export interface PropGroup {
   title: string;
   props: Prop[];
+  /** A sentence or two under the rows, such as what its distances mean. */
+  note?: string;
 }
 
 /**
@@ -220,6 +222,14 @@ function length(props: Prop[], label: string, metres: number | undefined) {
 export interface Unit {
   label: string;
   metres: number;
+}
+
+/** The unit a job's distance units name, such as USSurveyFeet. */
+export function unitOf(distanceUnits: string | undefined): Unit {
+  const u = (distanceUnits ?? '').toLowerCase();
+  if (u.includes('survey')) return { label: 'sft', metres: 1200 / 3937 };
+  if (u.includes('feet') || u.includes('foot')) return { label: 'ift', metres: 0.3048 };
+  return { label: 'm', metres: 1 };
 }
 
 export function formatProp(p: Prop, unit: Unit): string {

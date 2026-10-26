@@ -1,11 +1,12 @@
 // The properties panel for a line or polygon drawn from feature codes, like a
-// linestring's Properties in Trimble Business Center: its shape and size on
-// the job's grid, the library's definition, the attributes captured at its
-// points, and the points themselves. Attributes are recorded at every point,
-// so where a value changes along a line the panel says where each applies.
+// linestring's Properties in Trimble Business Center: its shape and size, as
+// grid and ground distances, the library's definition, the attributes captured
+// at its points, and the points themselves. Attributes are recorded at every
+// point, so where a value changes along a line the panel says where each applies.
 
 import type { FeatureDef, FeatureLibrary } from './fxl';
 import type { JxlPoint } from './jxl';
+import type { CrsInfo } from './crs';
 import { attributeNames, definitionProps, featureTitle, NOT_RECORDED, repeatsDefinition } from './featureprops';
 import { figureOutline, offsetPolyline, type FigureNode, type LineFigure, type Linework } from './linework';
 import { formatArea, formatLength, type Prop, type PropGroup, type Unit } from './properties';
@@ -23,7 +24,9 @@ const MAX_RUNS = 4;
 export interface Measures {
   /** Horizontal length along the figure, curves included; its perimeter when closed. Metres. */
   length: number;
-  /** Length in 3D through the points' elevations, when every point has one. */
+  /** Ground distance ÷ length, and whether it came from the points or the job's scale factor. */
+  ground?: { factor: number; from: 'points' | 'job' };
+  /** Length along the slope through the points' elevations, when every point of an open figure has one. */
   slopeLength?: number;
   /** Area of a closed figure or polygon, in square metres. */
   area?: number;
@@ -36,34 +39,108 @@ export interface Measures {
   grid: boolean;
 }
 
-export function measureFigure(fig: LineFigure, figures: LineFigure[], points: JxlPoint[]): Measures {
+/**
+ * Measures a figure on the job's grid, with its ground distance from the
+ * points' latitudes, longitudes and heights, or else from the job's scale
+ * factor (grid ÷ ground) if it has one.
+ */
+export function measureFigure(fig: LineFigure, figures: LineFigure[], points: JxlPoint[], scale?: number): Measures {
   const base = fig.offset ? figures[fig.offset.of] : fig;
+  const coords = base.nodes.map((n) => points[n.index]?.coords);
   // On the grid, as TBC measures, when every point has grid coordinates.
   // Relative to the first point, as grid coordinates run to millions of
   // metres: too large to fit circles through accurately.
-  const grid = base.nodes.every((n) => points[n.index]?.coords.north !== undefined && points[n.index]?.coords.east !== undefined);
-  const origin = points[base.nodes[0]?.index]?.coords;
-  const nodes = grid
-    ? base.nodes.map((n) => ({ ...n, x: points[n.index].coords.east! - origin.east!, y: points[n.index].coords.north! - origin.north! }))
-    : base.nodes;
+  const grid = coords.every((c) => c?.north !== undefined && c.east !== undefined);
+  // Otherwise on the ellipsoid, between the map positions: flattened about the
+  // first point to draw the shape, but each piece measured on the ellipsoid.
+  const o = coords[0];
+  const flat = grid ? undefined : flatAbout(o.mapLat!, o.mapLon!);
+  const nodes = base.nodes.map((n, i) =>
+    flat ? { ...n, ...flat.toXY(coords[i].mapLat!, coords[i].mapLon!) } : { ...n, x: coords[i].east! - o.east!, y: coords[i].north! - o.north! },
+  );
   let outline = figureOutline({ ...base, nodes }, MEASURE_DETAIL);
   if (fig.offset) outline = offsetPolyline(outline, fig.offset.line.offset);
   const ring = isRing(fig, base);
   if (ring && outline.length > 2 && !samePoint(outline[0], outline[outline.length - 1])) outline.push(outline[0]);
 
-  const m: Measures = { length: pathLength(outline), grid };
+  const m: Measures = { length: flat ? flat.length(outline) : pathLength(outline), grid };
   if (ring && outline.length > 3) m.area = Math.abs(shoelace(outline));
   // Circles are drawn finely enough when measuring for this to be good to a part in 10⁷.
   if (base.shape === 'circleEdge' || base.shape === 'circleCenter') m.radius = m.length / (2 * Math.PI);
   if (base.shape === 'rectangle' && outline.length === 5) m.sides = [distance(outline[0], outline[1]), distance(outline[1], outline[2])];
-  const z = base.nodes.map((n) => points[n.index]?.coords.elevation);
+  const fromPoints = groundFactor(coords, grid);
+  if (fromPoints !== undefined) m.ground = { factor: fromPoints, from: 'points' };
+  else if (grid && scale) m.ground = { factor: 1 / scale, from: 'job' };
+  const z = coords.map((c) => c?.elevation);
   const known = z.filter((v): v is number => v !== undefined);
   if (known.length) m.elevations = [Math.min(...known), Math.max(...known)];
-  // Shapes pass through only some of their points, so a 3D length means little.
-  if (!fig.offset && (base.shape === 'line' || base.shape === 'join') && known.length === z.length) {
-    m.slopeLength = slopeLength(outline, nodes, known, ring);
+  // Shapes pass through only some of their points, so a slope length means
+  // little; nor does one around a closed figure.
+  if (!fig.offset && !ring && (base.shape === 'line' || base.shape === 'join') && known.length === z.length) {
+    m.slopeLength = slopeLength(outline, nodes, known, m.ground?.factor ?? 1);
   }
   return m;
+}
+
+const A = 6378137;
+const E2 = (2 - 1 / 298.257222101) / 298.257222101;
+const RAD = Math.PI / 180;
+
+/** The ellipsoid's radii of curvature at a latitude: in the meridian, and at right angles to it. */
+function radii(lat: number): { m: number; n: number } {
+  const w = 1 - E2 * Math.sin(lat * RAD) ** 2;
+  return { m: (A * (1 - E2)) / w ** 1.5, n: A / Math.sqrt(w) };
+}
+
+/** Distance on the GRS80 ellipsoid, good to a part in 10⁸ up to a few kilometres. */
+function ellipsoidDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const lat = (lat1 + lat2) / 2;
+  const { m, n } = radii(lat);
+  return Math.hypot(m * (lat2 - lat1) * RAD, n * Math.cos(lat * RAD) * (lon2 - lon1) * RAD);
+}
+
+/** A plane about a map position for drawing a figure's shape, whose pieces are measured on the ellipsoid. */
+function flatAbout(lat0: number, lon0: number) {
+  const { m, n } = radii(lat0);
+  const my = m * RAD;
+  const mx = n * Math.cos(lat0 * RAD) * RAD;
+  return {
+    toXY: (lat: number, lon: number) => ({ x: (lon - lon0) * mx, y: (lat - lat0) * my }),
+    length(line: [number, number][]) {
+      let total = 0;
+      for (let i = 1; i < line.length; i++) {
+        const [a, b] = [line[i - 1], line[i]];
+        total += ellipsoidDistance(lat0 + a[1] / my, lon0 + a[0] / mx, lat0 + b[1] / my, lon0 + b[0] / mx);
+      }
+      return total;
+    },
+  };
+}
+
+/**
+ * Ground distance ÷ grid (or ellipsoid) distance between the figure's points.
+ * Trimble Access takes a ground distance to be the distance on the ellipsoid
+ * at the average height of its two ends above it, so this needs the
+ * latitudes, longitudes and ellipsoid heights the points were surveyed with.
+ */
+function groundFactor(coords: JxlPoint['coords'][], grid: boolean): number | undefined {
+  let ground = 0;
+  let measured = 0;
+  for (let i = 1; i < coords.length; i++) {
+    const [a, b] = [coords[i - 1], coords[i]];
+    if (!surveyed(a) || !surveyed(b)) continue;
+    const s = ellipsoidDistance(a.lat!, a.lon!, b.lat!, b.lon!);
+    const { m, n } = radii((a.lat! + b.lat!) / 2);
+    ground += s * (1 + (a.height! + b.height!) / 2 / Math.sqrt(m * n));
+    measured += grid ? Math.hypot(b.east! - a.east!, b.north! - a.north!) : s;
+  }
+  // Below this, rounding in the coordinates could show; the factor hardly matters anyway.
+  return measured > 0.1 ? ground / measured : undefined;
+}
+
+/** A latitude, longitude and ellipsoid height from the field, not worked out from the grid or placed by hand. */
+function surveyed(c: JxlPoint['coords'] | undefined): boolean {
+  return !!c && c.lat !== undefined && c.lon !== undefined && c.height !== undefined && (c.source === 'WGS84' || c.source === 'ECEF');
 }
 
 /** Closed figures, polygons, rectangles and circles; not lines alongside them. */
@@ -72,10 +149,11 @@ function isRing(fig: LineFigure, base: LineFigure) {
 }
 
 /**
- * Length in 3D, with the grade even between points. Curves pass exactly
- * through their points, so each point is found along the outline.
+ * Length along the slope, with the grade even between points and the
+ * horizontal distance times the scale. Curves pass exactly through their
+ * points, so each point is found along the outline.
  */
-function slopeLength(outline: [number, number][], nodes: FigureNode[], z: number[], ring: boolean): number | undefined {
+function slopeLength(outline: [number, number][], nodes: FigureNode[], z: number[], scale: number): number | undefined {
   const at: number[] = [];
   let s = 0;
   for (let k = 0, j = 0; k < outline.length && j < nodes.length; k++) {
@@ -87,8 +165,7 @@ function slopeLength(outline: [number, number][], nodes: FigureNode[], z: number
   }
   if (at.length !== nodes.length) return undefined;
   let total = 0;
-  for (let i = 1; i < at.length; i++) total += Math.hypot(at[i] - at[i - 1], z[i] - z[i - 1]);
-  if (ring) total += Math.hypot(pathLength(outline) - at[at.length - 1], z[0] - z[z.length - 1]);
+  for (let i = 1; i < at.length; i++) total += Math.hypot(scale * (at[i] - at[i - 1]), z[i] - z[i - 1]);
   return total;
 }
 
@@ -114,19 +191,31 @@ function samePoint(a: [number, number], b: [number, number]) {
 }
 
 /** The groups of a line's properties panel. */
-export function lineGroups(fig: LineFigure, linework: Linework, points: JxlPoint[], library: FeatureLibrary | undefined, unit: Unit): PropGroup[] {
+export function lineGroups(
+  fig: LineFigure,
+  linework: Linework,
+  points: JxlPoint[],
+  library: FeatureLibrary | undefined,
+  unit: Unit,
+  scale?: CrsInfo['scaleFactor'],
+): PropGroup[] {
   const base = fig.offset ? linework.figures[fig.offset.of] : fig;
-  const m = measureFigure(fig, linework.figures, points);
-  return [shapeGroup(fig, base, m, unit), featureGroup(fig, base, points, library), pointsGroup(base, points)];
+  const m = measureFigure(fig, linework.figures, points, scale?.value);
+  return [shapeGroup(fig, base, m, unit, scale?.name ?? ''), featureGroup(fig, base, points, library), pointsGroup(base, points)];
 }
 
-function shapeGroup(fig: LineFigure, base: LineFigure, m: Measures, unit: Unit): PropGroup {
-  const on = m.grid ? 'On the grid' : 'On the ellipsoid, as some of its points have no grid coordinates';
+function shapeGroup(fig: LineFigure, base: LineFigure, m: Measures, unit: Unit, scaleName: string): PropGroup {
   const props: Prop[] = [{ label: 'Drawn as', value: describeShape(fig, base, unit) }];
-  const lengthLabel = m.radius !== undefined ? 'Circumference' : isRing(fig, base) ? 'Perimeter' : '2D length';
-  props.push({ label: lengthLabel, value: m.length, kind: 'length', hint: `${on}, following any curves.` });
-  if (m.slopeLength !== undefined) props.push({ label: '3D length', value: m.slopeLength, kind: 'length', hint: "Through the points' elevations." });
-  if (m.area !== undefined) props.push({ label: 'Area', value: formatArea(m.area, unit), hint: `${on}.` });
+  // Grid and ground first: what a bearing and distance on a plat would give.
+  const along = m.radius !== undefined ? 'circumference' : isRing(fig, base) ? 'perimeter' : 'distance';
+  const on = m.grid ? 'Grid' : 'Ellipsoid';
+  props.push({ label: `${on} ${along}`, value: m.length, kind: 'length' });
+  if (m.ground) props.push({ label: `Ground ${along}`, value: m.length * m.ground.factor, kind: 'length' });
+  if (m.area !== undefined) {
+    props.push({ label: `${on} area`, value: formatArea(m.area, unit) });
+    if (m.ground) props.push({ label: 'Ground area', value: formatArea(m.area * m.ground.factor ** 2, unit) });
+  }
+  if (m.slopeLength !== undefined) props.push({ label: 'Slope distance', value: m.slopeLength, kind: 'length' });
   if (m.radius !== undefined) {
     props.push({ label: 'Radius', value: m.radius, kind: 'length' });
     props.push({ label: 'Diameter', value: 2 * m.radius, kind: 'length' });
@@ -137,7 +226,24 @@ function shapeGroup(fig: LineFigure, base: LineFigure, m: Measures, unit: Unit):
     // The unit once, so the range fits on a line.
     props.push({ label: 'Elevation', value: low === high ? formatLength(low, unit) : `${(low / unit.metres).toFixed(3)} to ${formatLength(high, unit)}` });
   }
-  return { title: shapeName(fig), props };
+  return { title: shapeName(fig), props, note: distanceNote(m, scaleName) };
+}
+
+/** What the distances mean, shown under them rather than behind a tap. */
+function distanceNote(m: Measures, scaleName: string): string {
+  const on = m.grid ? 'grid' : 'ellipsoid';
+  const notes: string[] = [];
+  if (!m.grid) notes.push('Some of its points have no grid coordinates, so it is measured on the ellipsoid, between latitudes and longitudes.');
+  if (m.ground) {
+    const k = (1 / m.ground.factor).toFixed(8);
+    const why = m.ground.from === 'points' ? "from the points' heights above the ellipsoid, the way Trimble Access works it out" : `the job's ${scaleName}`;
+    notes.push(`${m.grid ? 'Grid' : 'Ellipsoid'} and ground distances are horizontal. Ground is ${on}\u00a0÷\u00a0${k}, ${why}.`);
+    if (m.area !== undefined) notes.push(`Ground area is ${on} area\u00a0÷\u00a0${k}².`);
+  } else if (m.grid) {
+    notes.push('Grid distance is horizontal. There is no ground distance, as the job has no scale factor and its points no heights above the ellipsoid.');
+  }
+  if (m.slopeLength !== undefined) notes.push(`Slope distance adds the rise and fall between the points to the ${m.ground ? 'ground' : on} distance.`);
+  return notes.join(' ');
 }
 
 /** What a figure is, in a word or two. */
@@ -244,7 +350,7 @@ export function linesAtPoint(index: number, linework: Linework | undefined, poin
     props: figures.map((f) => {
       const m = measureFigure(f, linework!.figures, points);
       const what = shapeName(f) === 'Line' ? '' : `${shapeName(f)}, `;
-      return { label: f.code, value: `${what}${f.nodes.length} points, ${formatLength(m.length, unit)}`, link: { line: f.fid } };
+      return { label: f.code, value: `${what}${f.nodes.length} points, ${formatLength(m.length, unit)} ${m.grid ? 'grid' : 'ellipsoid'}`, link: { line: f.fid } };
     }),
   };
 }

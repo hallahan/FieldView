@@ -129,6 +129,9 @@ describe('parseRw5', () => {
     expect(gridFitsProjection(doc.points, PRESETS[0].proj4)).toBe(true);
     expect(projectGrid(doc.points, PRESETS[0].proj4)).toBe(2);
     expect(shot.coords.lat).toBeCloseTo(37.906, 2);
+    // Grid ÷ SF gives ground distances.
+    expect(doc.crs.scaleFactor).toEqual({ value: 1, name: 'scale factor (SF in the MO record)' });
+    expect(parseRw5(text.replace(',SF1.00000000', '')).crs.scaleFactor).toBeUndefined();
   });
 
   it('handles azimuths, bearings, vertical angles and curvature', () => {

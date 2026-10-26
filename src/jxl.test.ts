@@ -164,6 +164,15 @@ describe('Trimble Access 2025/2026 exports', () => {
     ]);
   });
 
+  it('reads the combined scale factor and which distances the job shows', () => {
+    const { crs } = parseJxl(access2026);
+    expect(crs.scaleFactor).toEqual({ value: 0.99995519034953, name: 'combined scale factor', height: 30.480060960122 });
+    expect(crs.entries).toContainEqual(['Combined scale factor', '0.99995519, at 100.000 sft above the ellipsoid']);
+    expect(crs.entries).toContainEqual(['Distances (Cogo setting)', 'Grid']);
+    // A ground coordinate system has the factor in its grid already.
+    expect(parseJxl(access2026.replace('<Type>Grid</Type>', '<Type>Ground</Type>')).crs.scaleFactor).toBeUndefined();
+  });
+
   it('drops empty metadata fields and XML namespace attributes', () => {
     const doc = parseJxl(access2026);
     expect(doc.metadata.find((s) => s.title === 'Job properties')).toBeUndefined();

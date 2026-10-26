@@ -6,6 +6,10 @@
         <UnitsRecord ID="00000002" TimeStamp="">
             <DistanceUnits>USSurveyFeet</DistanceUnits>
         </UnitsRecord>
+        <CorrectionsRecord ID="00000003" TimeStamp="">
+            <Distances>GridDistance</Distances>
+            <ApplySeaLevelCorrection>true</ApplySeaLevelCorrection>
+        </CorrectionsRecord>
         <EllipsoidRecord ID="00000004" TimeStamp="2026-09-24T07:38:38">
             <EarthRadius>6378137</EarthRadius>
             <Flattening>0.00335281068118</Flattening>
@@ -20,6 +24,12 @@
                 <Parallel1>38.433333333333</Parallel1>
                 <Parallel2>37.066666666667</Parallel2>
             </Projection>
+            <LocalSite>
+                <Type>Grid</Type>
+                <ProjectLocationLatitude/>
+                <ProjectLocationLongitude/>
+                <ProjectLocationHeight>30.480060960122</ProjectLocationHeight>
+            </LocalSite>
         </ProjectionRecord>
         <DatumRecord ID="00000006" TimeStamp="2026-09-24T07:38:38">
             <Type>ThreeParameter</Type>
@@ -194,4 +204,16 @@
             </Grid>
         </Point>
     </Reductions>
+    <Environment>
+        <CoordinateSystem>
+            <CombinedScaleFactor>
+                <Location>
+                    <Latitude>37.3</Latitude>
+                    <Longitude>-121.9</Longitude>
+                    <Height>30.480060960122</Height>
+                </Location>
+                <Scale>0.99995519034953</Scale>
+            </CombinedScaleFactor>
+        </CoordinateSystem>
+    </Environment>
 </JOBFile>

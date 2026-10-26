@@ -6,7 +6,7 @@ import { parseFxl } from './fxl';
 import type { JxlPoint } from './jxl';
 import { lineGroups, linesAtPoint, measureFigure } from './lineprops';
 import { buildLinework } from './linework';
-import type { PropGroup, Unit } from './properties';
+import { formatProp, type PropGroup, type Unit } from './properties';
 
 const lib = parseFxl(readFileSync(resolve(__dirname, 'fixtures/library.fxl'), 'utf8'), 'library.fxl');
 
@@ -25,6 +25,8 @@ interface Row {
   z?: number;
   /** Attributes captured for each code on the point. */
   features?: Record<string, Record<string, string>>;
+  /** Latitude, longitude and ellipsoid height, as GNSS gives them. */
+  geo?: [number, number, number];
 }
 
 /**
@@ -43,6 +45,7 @@ function points(rows: Row[]): JxlPoint[] {
       elevation: r.z,
       mapLat: LAT0 + r.n * M_LAT,
       mapLon: LON0 + r.e * M_LON,
+      ...(r.geo && { lat: r.geo[0], lon: r.geo[1], height: r.geo[2], source: 'WGS84' as const }),
     },
     origin: 'Reductions',
     type: 'GNSS',
@@ -60,7 +63,7 @@ function points(rows: Row[]): JxlPoint[] {
 const rows = (g: PropGroup) => Object.fromEntries(g.props.map((p) => [p.label, p]));
 
 describe('measureFigure', () => {
-  it('measures a line in 2D and 3D on the grid', () => {
+  it('measures a line on the grid, and along its slope', () => {
     const pts = points([
       { name: '1', code: 'EGL BL', e: 0, n: 0, z: 10 },
       { name: '2', code: 'EGL', e: 3, n: 4, z: 10 },
@@ -73,6 +76,40 @@ describe('measureFigure', () => {
     expect(m.slopeLength).toBeCloseTo(5 + 13, 9);
     expect(m.elevations).toEqual([10, 15]);
     expect(m.area).toBeUndefined();
+    // With a ground distance, the rise and fall is added to that.
+    expect(measureFigure(lw.figures[0], lw.figures, pts, 0.5).slopeLength).toBeCloseTo(10 + Math.hypot(24, 5), 9);
+  });
+
+  it("works out ground distance from the points' heights above the ellipsoid, as Trimble Access does", () => {
+    // Along the equator, where a distance on the ellipsoid is its radius times
+    // the change in longitude, on a grid 0.9996 of that like UTM's.
+    const a = 6378137;
+    // GRS80's semi-minor axis, which is also its mean radius at the equator.
+    const b = 6356752.31414;
+    const lon = (metres: number) => ((metres / a) * 180) / Math.PI;
+    const pts = points([
+      { name: '1', code: 'EGL BL', e: 0, n: 0, geo: [0, lon(0), 100] },
+      { name: '2', code: 'EGL', e: 0.9996 * 60, n: 0, geo: [0, lon(60), 100] },
+      { name: '3', code: 'EGL EL', e: 0.9996 * 100, n: 0, geo: [0, lon(100), 120] },
+    ]);
+    const lw = buildLinework(pts, lib);
+    const m = measureFigure(lw.figures[0], lw.figures, pts, 0.9);
+    expect(m.length).toBeCloseTo(99.96, 9);
+    // Each piece at the average height of its ends; the job's factor isn't needed.
+    expect(m.ground?.from).toBe('points');
+    expect(m.length * m.ground!.factor).toBeCloseTo(60 * (1 + 100 / b) + 40 * (1 + 110 / b), 8);
+    const [g] = lineGroups(lw.figures[0], lw, pts, lib, METRES, { value: 0.9, name: 'combined scale factor' });
+    expect(g.note).toContain("Ground is grid\u00a0÷\u00a00.99958365, from the points' heights above the ellipsoid, the way Trimble Access works it out.");
+  });
+
+  it("falls back to the job's scale factor for ground distance", () => {
+    const pts = points([
+      { name: '1', code: 'EGL BL', e: 0, n: 0 },
+      { name: '2', code: 'EGL EL', e: 30, n: 40 },
+    ]);
+    const lw = buildLinework(pts, lib);
+    expect(measureFigure(lw.figures[0], lw.figures, pts).ground).toBeUndefined();
+    expect(measureFigure(lw.figures[0], lw.figures, pts, 0.99995).ground).toEqual({ factor: 1 / 0.99995, from: 'job' });
   });
 
   it('gives closed figures a perimeter and area', () => {
@@ -142,16 +179,25 @@ describe('measureFigure', () => {
     expect(rows(lineGroups(back, lw, pts, lib, METRES)[0])['Drawn as'].value).toBe('0.500 m left of GUT');
   });
 
-  it('falls back to the map positions without grid coordinates', () => {
+  it('measures on the ellipsoid without grid coordinates', () => {
     const pts = points([
       { name: '1', code: 'EGL BL', e: 0, n: 0 },
       { name: '2', code: 'EGL', e: 30, n: 40 },
     ]);
     delete pts[1].coords.north;
+    // 30 m east and 40 m north on GRS80, rather than on the helper's sphere.
+    const e2 = 0.00669438002290;
+    const w = 1 - e2 * Math.sin((LAT0 * Math.PI) / 180) ** 2;
+    const perDegree = (6378137 * Math.PI) / 180;
+    pts[1].coords.mapLat = LAT0 + 40 / ((perDegree * (1 - e2)) / w ** 1.5);
+    pts[1].coords.mapLon = LON0 + 30 / ((perDegree / Math.sqrt(w)) * Math.cos((LAT0 * Math.PI) / 180));
     const lw = buildLinework(pts, lib);
-    const m = measureFigure(lw.figures[0], lw.figures, pts);
+    const m = measureFigure(lw.figures[0], lw.figures, pts, 0.99995);
     expect(m.grid).toBe(false);
-    expect(m.length).toBeCloseTo(50, 2);
+    expect(m.length).toBeCloseTo(50, 3);
+    // The job's factor is for grid distances, so it doesn't apply.
+    expect(m.ground).toBeUndefined();
+    expect(rows(lineGroups(lw.figures[0], lw, pts, lib, METRES)[0])['Ellipsoid distance'].value).toBeCloseTo(50, 3);
   });
 });
 
@@ -168,7 +214,48 @@ describe('lineGroups', () => {
   it('describes the shape and its size', () => {
     expect(shape.title).toBe('Line');
     expect(rows(shape)['Drawn as'].value).toBe('Line through 4 points');
-    expect(rows(shape)['2D length']).toMatchObject({ value: 30, kind: 'length' });
+    expect(rows(shape)['Grid distance']).toMatchObject({ value: 30, kind: 'length' });
+    // No heights above the ellipsoid, and no scale factor for the job.
+    expect(rows(shape)['Ground distance']).toBeUndefined();
+    expect(shape.note).toBe('Grid distance is horizontal. There is no ground distance, as the job has no scale factor and its points no heights above the ellipsoid.');
+  });
+
+  it('puts grid and ground distance first, then slope, and says what they mean', () => {
+    const sloped = points([
+      { name: '1', code: 'EGL BL', e: 0, n: 0, z: 10 },
+      { name: '2', code: 'EGL EL', e: 30, n: 40, z: 12 },
+    ]);
+    const lws = buildLinework(sloped, lib);
+    const [g] = lineGroups(lws.figures[0], lws, sloped, lib, METRES, { value: 0.99995, name: 'combined scale factor' });
+    expect(g.props.map((p) => [p.label, formatProp(p, METRES)])).toEqual([
+      ['Drawn as', 'Line through 2 points'],
+      ['Grid distance', '50.000 m'],
+      ['Ground distance', '50.003 m'],
+      ['Slope distance', '50.042 m'],
+      ['Elevation', '10.000 to 12.000 m'],
+    ]);
+    expect(g.note).toBe(
+      "Grid and ground distances are horizontal. Ground is grid\u00a0÷\u00a00.99995000, the job's combined scale factor. " +
+        'Slope distance adds the rise and fall between the points to the ground distance.',
+    );
+  });
+
+  it('gives closed figures grid and ground perimeters and areas', () => {
+    const closed = points([
+      { name: '1', code: 'EGL BL', e: 0, n: 0 },
+      { name: '2', code: 'EGL', e: 4, n: 0 },
+      { name: '3', code: 'EGL CL', e: 4, n: 3 },
+    ]);
+    const lwc = buildLinework(closed, lib);
+    const [g] = lineGroups(lwc.figures[0], lwc, closed, lib, METRES, { value: 0.5, name: 'combined scale factor' });
+    expect(g.props.map((p) => [p.label, formatProp(p, METRES)])).toEqual([
+      ['Drawn as', 'Closed line through 3 points'],
+      ['Grid perimeter', '12.000 m'],
+      ['Ground perimeter', '24.000 m'],
+      ['Grid area', '6.00 m²'],
+      ['Ground area', '24.00 m²'],
+    ]);
+    expect(g.note).toContain('Ground area is grid area\u00a0÷\u00a00.50000000².');
   });
 
   it('shows the definition and the attributes along the line', () => {
@@ -244,8 +331,8 @@ describe('linesAtPoint', () => {
     const g = linesAtPoint(1, lw, pts, METRES);
     // In the order they were drawn: the closed figure ends first.
     expect(g.props.map((p) => [p.label, p.value, p.link])).toEqual([
-      ['EGL', 'Closed line, 3 points, 34.142 m', { line: 0 }],
-      ['PCC', '2 points, 10.000 m', { line: 1 }],
+      ['EGL', 'Closed line, 3 points, 34.142 m grid', { line: 0 }],
+      ['PCC', '2 points, 10.000 m grid', { line: 1 }],
     ]);
     expect(linesAtPoint(2, lw, pts, METRES).props).toHaveLength(1);
   });

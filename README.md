@@ -37,11 +37,13 @@ Libraries are kept in the browser (IndexedDB), so each one is added once per dev
 
 Tap a line or polygon to see its properties, as for a point:
 
-- its shape and size: 2D and 3D length (or perimeter), area, radius or sides, and elevation range, measured on the job's grid and following curves
+- its shape and size, following curves: grid and ground distance (or perimeter and area), then slope distance, radius or sides, and elevation range. A note under them says what each means and which scale factor turned grid into ground
 - the feature's definition from the library, and the attributes captured at its points. Attributes are recorded at every shot, so where a value changes along the line (a guardrail going from Thrie beam to MBGR, say) each value is listed with the points it covers
 - its points, each of which opens that point; from a point, ↑/↓ then step along the line
 
 A point's properties list the lines through it in the same way. A tap within a few pixels of a point picks the point; further along a line, the line.
+
+Grid distance is horizontal, between the points' grid coordinates. Ground distance is horizontal too, worked out the way Trimble Access does it: the distance on the ellipsoid between the points' latitudes and longitudes, scaled up to their average height above the ellipsoid. That's grid ÷ a combined scale factor for each line, so it follows the ground's height across the job instead of a single project height. Where points have no latitude, longitude and ellipsoid height (total station shots in an RW5 file, say), the job's own scale factor is used: the combined scale factor in a JobXML file, or SF in an RW5 file's MO record. Slope distance adds the rise and fall between points to the ground distance.
 
 ## Uploading jobs to GitHub
 
