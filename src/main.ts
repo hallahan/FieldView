@@ -7,6 +7,7 @@ import { currentEpoch, nad83ToWgs84 } from './datum';
 import { parseJxl, type JxlDocument, type JxlPoint, type ObservationType } from './jxl';
 import { initJobs, type JobOrigin } from './jobs';
 import { projectGrid, resolveProjection } from './projection';
+import { formatProp, latLonDms, type PropGroup, type Unit } from './properties';
 import { esc, formatBytes } from './util';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
@@ -49,6 +50,10 @@ const TYPE_SHORT: Record<ObservationType, string> = {
 
 let doc: JxlDocument | undefined;
 let selected: number | undefined;
+/** Whether the properties panel is showing in place of the point list. */
+let showingDetail = false;
+/** Point indices in list order, after the filter, for stepping through them. */
+let listed: number[] = [];
 let colorBy: 'code' | 'type' = 'code';
 let alignToImagery = readPref('alignToImagery') !== 'false';
 const mapEpoch = currentEpoch();
@@ -243,6 +248,7 @@ function load(text: string, name: string, size: number, gridDef?: { input: strin
   loaded = { text, name, size, origin };
   jobs.setOpenFile({ doc, text, name, origin });
   selected = undefined;
+  showingDetail = false;
   document.body.classList.add('loaded');
   $('#dropzone strong').textContent = 'Open another file';
   doc.metadata.unshift({
@@ -432,16 +438,18 @@ function renderTable() {
   if (!doc) return;
   const q = $<HTMLInputElement>('#search').value.trim().toLowerCase();
   const color = colorFn();
-  const rows = doc.points
-    .filter((p) => !q || [p.name, p.code, p.type, TYPE_SHORT[p.type]].some((s) => s.toLowerCase().includes(q)))
+  const points = doc.points.filter((p) => !q || [p.name, p.code, p.type, TYPE_SHORT[p.type]].some((s) => s.toLowerCase().includes(q)));
+  listed = points.map((p) => p.index);
+  $('#points-table tbody').innerHTML = points
     .map(
       (p) => `<tr data-index="${p.index}" class="${p.index === selected ? 'selected' : ''} ${p.deleted ? 'deleted' : ''}">
-        <td><span class="swatch" style="background:${color(p)}"></span>${esc(p.name)}</td>
+        <td><span class="swatch" style="background:${color(p)}" title="${esc(p.type)}"></span>${esc(p.name)}${
+          p.coords.lat === undefined ? ' <span class="no-pos" title="No position, so not on the map">no position</span>' : ''
+        }</td>
         <td>${esc(p.code)}</td>
-        <td>${TYPE_SHORT[p.type]}${p.coords.lat === undefined ? ' <span class="muted">· no position</span>' : ''}</td>
       </tr>`,
-    );
-  $('#points-table tbody').innerHTML = rows.join('');
+    )
+    .join('');
 }
 
 $('#points-table tbody').addEventListener('click', (e) => {
@@ -452,18 +460,39 @@ $('#points-table tbody').addEventListener('click', (e) => {
 function select(index: number, fly: boolean) {
   if (!doc) return;
   selected = index;
+  showingDetail = true;
   const p = doc.points[index];
   showTab('points');
   setSelectedFilter();
-  if (isSheet()) {
-    // Keep the map visible above the sheet, with the detail card in view.
-    setSheet(false);
-    requestAnimationFrame(() => $('#point-detail').scrollIntoView({ block: 'start' }));
-  }
+  if (isSheet()) setSheet(false);
   if (fly && p.coords.mapLat !== undefined) map.flyTo({ center: [p.coords.mapLon!, p.coords.mapLat!], zoom: Math.max(map.getZoom(), 17) });
   renderTable();
   renderDetail();
-  if (!isSheet()) document.querySelector(`#points-table tr[data-index="${index}"]`)?.scrollIntoView({ block: 'nearest' });
+  // Bring the properties to the top of the panel.
+  $('#point-detail').scrollIntoView({ block: 'start' });
+}
+
+/** Back to the list, keeping the point highlighted and the list where it was. */
+function showList() {
+  showingDetail = false;
+  renderDetail();
+  document.querySelector(`#points-table tr[data-index="${selected}"]`)?.scrollIntoView({ block: 'nearest' });
+}
+
+document.addEventListener('keydown', (e) => {
+  if (!showingDetail || (e.target as HTMLElement).closest('input, select, textarea')) return;
+  if (e.key === 'Escape') showList();
+  else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') step(1);
+  else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') step(-1);
+  else return;
+  e.preventDefault();
+});
+
+/** Move to the next or previous point in the list. */
+function step(by: 1 | -1) {
+  const at = listed.indexOf(selected ?? -1);
+  const next = listed[at + by];
+  if (next !== undefined) select(next, true);
 }
 
 function setSelectedFilter() {
@@ -472,53 +501,87 @@ function setSelectedFilter() {
 
 function renderDetail() {
   const el = $('#point-detail');
-  const p = selected !== undefined ? doc?.points[selected] : undefined;
+  const p = showingDetail && selected !== undefined ? doc?.points[selected] : undefined;
   el.hidden = !p;
+  $('#point-list').hidden = !!p;
   if (!p) return;
+  const unit = jobUnit();
+  const at = listed.indexOf(p.index);
+  const groups: PropGroup[] = [
+    coordinateGroup(p),
+    ...p.features.map((f) => ({
+      title: p.features.length > 1 || f.name !== p.code.split(/\s+/)[0] ? `Attributes · ${f.name}` : 'Attributes',
+      // Unfilled photo/file/text fields are common and only add noise.
+      props: Object.entries(f.attributes)
+        .filter(([, v]) => v !== '')
+        .map(([label, value]) => ({ label, value })),
+    })),
+    pointGroup(p),
+    ...p.observation,
+  ];
   el.innerHTML = `
     <div class="detail-head">
-      <h2>${esc(p.name || '(unnamed)')}${p.code ? ` <span class="code">${esc(p.code)}</span>` : ''}</h2>
-      <button class="close" title="Close">×</button>
+      <div class="detail-nav">
+        <button class="back" title="Back to the point list (Esc)">‹ Points</button>
+        <span class="muted">${at >= 0 ? `${at + 1} of ${listed.length}` : ''}</span>
+        <span class="stepper">
+          <button data-step="-1" title="Previous point (↑)" ${at <= 0 ? 'disabled' : ''}>↑</button>
+          <button data-step="1" title="Next point (↓)" ${at < 0 || at >= listed.length - 1 ? 'disabled' : ''}>↓</button>
+        </span>
+      </div>
+      <h2><span class="name">${esc(p.name || '(unnamed)')}</span>${p.code ? ` <span class="code">${esc(p.code)}</span>` : ''}</h2>
     </div>
     ${p.deleted ? '<p class="warn">This point is marked deleted in the field book.</p>' : ''}
-    ${p.features.map((f) => table(`Feature: ${f.name}`, Object.entries(f.attributes).filter(([, v]) => v !== ''))).join('')}
-    ${table('Position', positionEntries(p))}
-    <details><summary>All attributes (${Object.keys(p.attributes).length})</summary>${table('', Object.entries(p.attributes))}</details>
+    ${groups
+      .filter((g) => g.props.length)
+      .map(
+        (g) => `<details class="group" open><summary>${esc(g.title)}</summary><table class="kv">${g.props
+          .map((prop) => `<tr><th>${esc(prop.label)}</th><td>${prop.kind === 'html' ? String(prop.value) : esc(formatProp(prop, unit))}</td></tr>`)
+          .join('')}</table></details>`,
+      )
+      .join('')}
+    <details class="group"><summary>All attributes (${Object.keys(p.attributes).length})</summary>${table('', Object.entries(p.attributes))}</details>
   `;
-  el.querySelector('.close')!.addEventListener('click', () => {
-    selected = undefined;
-    setSelectedFilter();
-    renderDetail();
-    renderTable();
-  });
+  el.querySelector('.back')!.addEventListener('click', showList);
+  el.querySelectorAll<HTMLButtonElement>('[data-step]').forEach((b) => b.addEventListener('click', () => step(Number(b.dataset.step) as 1 | -1)));
 }
 
-function positionEntries(p: JxlPoint): [string, string][] {
+function pointGroup(p: JxlPoint): PropGroup {
+  const props: PropGroup['props'] = [{ label: 'Measured by', value: p.type }];
+  if (p.method) props.push({ label: 'Method', value: p.method });
+  if (p.surveyMethod) props.push({ label: 'Survey method', value: p.surveyMethod });
+  if (p.classification && p.classification !== 'Normal') props.push({ label: 'Classification', value: p.classification });
+  if (p.stored) props.push({ label: 'Stored', value: p.stored.replace('T', ' ') });
+  props.push({ label: 'Record ID', value: `${p.id} (${p.origin})` });
+  return { title: 'Point', props };
+}
+
+/** Coordinates as the crew saw them: grid in the job's units, lat/long in DMS. */
+function coordinateGroup(p: JxlPoint): PropGroup {
   const c = p.coords;
-  const out: [string, string][] = [];
-  out.push(['Measured by', p.type]);
-  // Grid values in the job's own units, as the crew saw them.
-  const unit = jobUnit();
-  if (c.north !== undefined) out.push([`North (${unit.label})`, (c.north / unit.metres).toFixed(3)]);
-  if (c.east !== undefined) out.push([`East (${unit.label})`, (c.east / unit.metres).toFixed(3)]);
-  if (c.elevation !== undefined) out.push([`Elevation (${unit.label})`, (c.elevation / unit.metres).toFixed(3)]);
-  if (c.reduced) out.push(['Grid from', 'Reduced from the total station observation by OpenFieldView']);
+  const props: PropGroup['props'] = [];
+  const length = (label: string, v: number | undefined) => v !== undefined && props.push({ label, value: v, kind: 'length' as const });
+  length('Northing', c.north);
+  length('Easting', c.east);
+  length('Elevation', c.elevation);
+  if (c.reduced) props.push({ label: 'Grid from', value: 'Reduced from the total station observation by OpenFieldView' });
   if (c.lat !== undefined) {
-    out.push(['Latitude', c.lat.toFixed(9)], ['Longitude', c.lon!.toFixed(9)]);
-    if (c.height !== undefined) out.push(['Ellipsoid height (m)', c.height.toFixed(3)]);
-    out.push(['Lat/long from', c.source === 'Grid' ? 'Grid coordinates' : c.source!]);
+    const deg = (v: number) => `<span class="sub-value">${v.toFixed(9)}°</span>`;
+    props.push({ label: 'Latitude', value: `${esc(latLonDms(c.lat, 'N', 'S'))}${deg(c.lat)}`, kind: 'html' });
+    props.push({ label: 'Longitude', value: `${esc(latLonDms(c.lon!, 'E', 'W'))}${deg(c.lon!)}`, kind: 'html' });
+    length('Height (ellipsoid)', c.height);
+    props.push({ label: 'Lat/long from', value: c.source === 'Grid' ? 'Grid coordinates' : c.source! });
     if (c.mapLat !== undefined && (c.mapLat !== c.lat || c.mapLon !== c.lon)) {
-      out.push([`Map position (ITRF2020 ≈ WGS84, ${mapEpoch.toFixed(2)})`, `${c.mapLat.toFixed(9)}, ${c.mapLon!.toFixed(9)}`]);
+      props.push({ label: `Map position (ITRF2020 ≈ WGS84, ${mapEpoch.toFixed(2)})`, value: `${c.mapLat.toFixed(9)}, ${c.mapLon!.toFixed(9)}` });
     }
   }
-  out.push(['Record ID', p.id], ['From', p.origin]);
-  return out;
+  return { title: 'Coordinates', props };
 }
 
-function jobUnit(): { label: string; metres: number } {
+function jobUnit(): Unit {
   const u = (doc?.crs.distanceUnits ?? '').toLowerCase();
-  if (u.includes('survey')) return { label: 'US ft', metres: 1200 / 3937 };
-  if (u.includes('feet') || u.includes('foot')) return { label: 'ft', metres: 0.3048 };
+  if (u.includes('survey')) return { label: 'sft', metres: 1200 / 3937 };
+  if (u.includes('feet') || u.includes('foot')) return { label: 'ift', metres: 0.3048 };
   return { label: 'm', metres: 1 };
 }
 
