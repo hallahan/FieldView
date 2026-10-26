@@ -12,6 +12,7 @@ import { initJobs, type JobOrigin } from './jobs';
 import { buildLinework, parseCode, type Linework } from './linework';
 import { projectGrid, resolveProjection } from './projection';
 import { featureGroups } from './featureprops';
+import { groundDelta, IMAGERY_TILES, initImagery, isZero, type ImageryOffset } from './imagery';
 import { formatProp, latLonDms, type PropGroup, type Unit } from './properties';
 import { esc, formatBytes } from './util';
 
@@ -26,7 +27,7 @@ const BASEMAPS: Record<string, string | StyleSpecification> = {
     sources: {
       imagery: {
         type: 'raster',
-        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+        tiles: [IMAGERY_TILES],
         tileSize: 256,
         maxzoom: 19,
         attribution: 'Imagery © Esri, Maxar, Earthstar Geographics',
@@ -104,11 +105,13 @@ const jobs = initJobs({
   showLines: () => showLines,
 });
 const lineMap = initLineMap(map);
+const imagery = initImagery(map, 'imagery');
 
 // Layers are re-added whenever the basemap style is swapped.
 let styleReady = false;
 map.on('style.load', () => {
   styleReady = true;
+  imagery.styleLoaded();
   addPointLayers();
   refreshLines();
   jobs.addLayers();
@@ -221,6 +224,7 @@ function refreshLines() {
 // exact hit on a small circle.
 const TAP_TOLERANCE = 14;
 map.on('click', (e) => {
+  if (aligning) return;
   if (jobs.handleClick(e, TAP_TOLERANCE)) return;
   if (!map.getLayer('points-circle')) return;
   const { x, y } = e.point;
@@ -237,8 +241,8 @@ map.on('click', (e) => {
     .sort((a, b) => a.d - b.d)[0].f;
   select(Number(nearest.properties.index), false);
 });
-map.on('mouseenter', 'points-circle', () => (map.getCanvas().style.cursor = 'pointer'));
-map.on('mouseleave', 'points-circle', () => (map.getCanvas().style.cursor = ''));
+map.on('mouseenter', 'points-circle', () => !aligning && (map.getCanvas().style.cursor = 'pointer'));
+map.on('mouseleave', 'points-circle', () => !aligning && (map.getCanvas().style.cursor = ''));
 
 function toGeoJSON(): FeatureCollection {
   const color = colorFn();
@@ -380,6 +384,7 @@ function load(text: string, name: string, size: number, gridDef?: { input: strin
   );
   $('#align-row').hidden = !doc.crs.nad83;
   alignPoints();
+  setImageryOffset(readOffset(), false);
   linework = buildLinework(doc.points, library);
   const remaining = doc.points.filter((p) => p.coords.lat === undefined && p.coords.north !== undefined).length;
   $('#projection').hidden = remaining === 0;
@@ -699,6 +704,7 @@ function showList() {
 }
 
 document.addEventListener('keydown', (e) => {
+  if (aligning && alignKey(e)) return;
   if (!showingDetail || (e.target as HTMLElement).closest('input, select, textarea')) return;
   if (e.key === 'Escape') showList();
   else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') step(1);
@@ -835,6 +841,127 @@ document.querySelectorAll<HTMLButtonElement>('#basemap-toggle button').forEach((
     basemap = b.dataset.basemap!;
     lineMap.setBasemap(basemap);
     map.setStyle(BASEMAPS[basemap]);
+    if (basemap !== 'satellite') setAligning(false);
+    renderAlign();
   }),
 );
+
+// ---------------------------------------------------------------- imagery alignment
+
+// The imagery is moved, not the survey: drag it until it sits under the
+// points and linework. The offset is kept on this device for each job.
+let imageryOffset: ImageryOffset | undefined;
+let aligning = false;
+let dragFrom: { pointer: number; at: maplibregl.LngLat; offset: ImageryOffset } | undefined;
+const pointers = new Set<number>();
+
+/** The job's own name, so every version of it opened from a repo shares an offset. */
+function offsetKey() {
+  const name = doc?.job.jobName || (loaded?.name ?? '').replace(/(_[0-9a-f]{7})?\.jxl$/i, '');
+  return `imageryOffset.${name}`;
+}
+
+function readOffset(): ImageryOffset | undefined {
+  try {
+    const o = JSON.parse(readPref(offsetKey()) || 'null');
+    return o && [o.east, o.north, o.lat].every(Number.isFinite) ? o : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function setImageryOffset(o: ImageryOffset | undefined, save: boolean) {
+  imageryOffset = isZero(o) ? undefined : o;
+  imagery.set(imageryOffset);
+  if (save && doc) writePref(offsetKey(), imageryOffset ? JSON.stringify(imageryOffset) : '');
+  renderAlign();
+}
+
+function setAligning(on: boolean) {
+  aligning = on;
+  dragFrom = undefined;
+  // One finger moves the imagery; pinching still zooms, without rotating.
+  for (const h of [map.dragPan, map.dragRotate, map.keyboard, map.touchPitch]) {
+    if (on) h.disable();
+    else h.enable();
+  }
+  if (on) map.touchZoomRotate.disableRotation();
+  else map.touchZoomRotate.enableRotation();
+  map.getCanvas().style.cursor = on ? 'move' : '';
+  // Without this the browser takes a one-finger drag as a page scroll.
+  map.getCanvasContainer().classList.toggle('aligning', on);
+  renderAlign();
+}
+
+function renderAlign() {
+  const button = $<HTMLButtonElement>('#align-imagery');
+  button.hidden = basemap !== 'satellite' || !doc;
+  button.classList.toggle('active', aligning);
+  button.classList.toggle('moved', !!imageryOffset);
+  $('#align-bar').hidden = !aligning;
+  $<HTMLButtonElement>('#align-reset').disabled = !imageryOffset;
+  $('#align-offset').textContent = imageryOffset ? `Moved ${describeOffset(imageryOffset)}` : 'Not moved';
+}
+
+function describeOffset(o: ImageryOffset) {
+  const unit = jobUnit();
+  const part = (v: number, pos: string, neg: string) => `${(Math.abs(v) / unit.metres).toFixed(2)} ${unit.label} ${v < 0 ? neg : pos}`;
+  return `${part(o.east, 'east', 'west')}, ${part(o.north, 'north', 'south')}`;
+}
+
+$('#align-imagery').addEventListener('click', () => setAligning(!aligning));
+$('#align-done').addEventListener('click', () => setAligning(false));
+$('#align-reset').addEventListener('click', () => setImageryOffset(undefined, true));
+
+const mapArea = map.getCanvasContainer();
+function lngLatAt(e: PointerEvent) {
+  const box = mapArea.getBoundingClientRect();
+  return map.unproject([e.clientX - box.left, e.clientY - box.top]);
+}
+mapArea.addEventListener('pointerdown', (e) => {
+  if (!aligning) return;
+  pointers.add(e.pointerId);
+  // A second finger is a pinch: leave the imagery where it is.
+  if (pointers.size > 1) {
+    if (dragFrom) setImageryOffset(imageryOffset, true);
+    dragFrom = undefined;
+    return;
+  }
+  const offset = imageryOffset ?? { east: 0, north: 0, lat: map.getCenter().lat };
+  dragFrom = { pointer: e.pointerId, at: lngLatAt(e), offset };
+  mapArea.setPointerCapture(e.pointerId);
+});
+mapArea.addEventListener('pointermove', (e) => {
+  if (!dragFrom || e.pointerId !== dragFrom.pointer) return;
+  const { offset } = dragFrom;
+  const [east, north] = groundDelta(dragFrom.at, lngLatAt(e), offset.lat);
+  setImageryOffset({ east: offset.east + east, north: offset.north + north, lat: offset.lat }, false);
+});
+const endDrag = (e: PointerEvent) => {
+  pointers.delete(e.pointerId);
+  if (dragFrom?.pointer !== e.pointerId) return;
+  dragFrom = undefined;
+  setImageryOffset(imageryOffset, true);
+};
+mapArea.addEventListener('pointerup', endDrag);
+mapArea.addEventListener('pointercancel', endDrag);
+
+/** Arrow keys nudge the imagery a screen pixel (ten with Shift); Esc finishes. */
+function alignKey(e: KeyboardEvent): boolean {
+  if ((e.target as HTMLElement).closest('input, select, textarea')) return false;
+  if (e.key === 'Escape') {
+    setAligning(false);
+    e.preventDefault();
+    return true;
+  }
+  const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+  if (!dir) return false;
+  const step = e.shiftKey ? 10 : 1;
+  const c = map.project(map.getCenter());
+  const offset = imageryOffset ?? { east: 0, north: 0, lat: map.getCenter().lat };
+  const [east, north] = groundDelta(map.unproject(c), map.unproject([c.x + dir[0] * step, c.y + dir[1] * step]), offset.lat);
+  setImageryOffset({ east: offset.east + east, north: offset.north + north, lat: offset.lat }, true);
+  e.preventDefault();
+  return true;
+}
 

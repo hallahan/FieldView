@@ -105,9 +105,19 @@
       </aside>
       <main>
         <div id="map"></div>
-        <div id="basemap-toggle">
-          <button data-basemap="streets" class="active">Streets</button>
-          <button data-basemap="satellite">Satellite</button>
+        <div id="map-tools">
+          <div id="basemap-toggle">
+            <button data-basemap="streets" class="active">Streets</button>
+            <button data-basemap="satellite">Satellite</button>
+          </div>
+          <button id="align-imagery" title="Drag the imagery to line it up with the survey" hidden>Align</button>
+        </div>
+        <div id="align-bar" role="status" hidden>
+          <p><strong>Drag the imagery</strong> to line it up with your points and linework. <span id="align-offset" class="muted"></span></p>
+          <div class="align-actions">
+            <button id="align-reset">Reset</button>
+            <button id="align-done" class="primary">Done</button>
+          </div>
         </div>
         <div id="drop-overlay" hidden>Drop a .jxl job or .fxl feature library</div>
       </main>
