@@ -234,6 +234,12 @@ button.github { display: inline-flex; align-items: center; justify-content: cent
 
 /* Small screens: map on top, panel below as a resizable sheet. The panel
    sits beside the map rather than over it so it never hides points. */
+/* Desktop: a wider panel so long attribute names and values fit on one line.
+   The controller (about 960px) keeps 380px so the map stays roomy. */
+@media (min-width: 1200px) {
+  #sidebar { width: 460px; }
+}
+
 @media (max-width: 760px) {
   #app { flex-direction: column; height: 100dvh; }
   main { order: 1; min-height: 0; }
