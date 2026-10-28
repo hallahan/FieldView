@@ -17,9 +17,23 @@ import {
 } from './auth';
 import { GitHub, GitHubError, parseRepo, type Commit, type RepoInfo, type RepoRef } from './github';
 import type { JxlDocument } from './jxl';
-import { loadIndex, saveJob, type JobFeature } from './library';
+import { loadIndex, saveJob, type JobFeature, type SaveResult } from './library';
 import type { Placement } from './placement';
 import { addRepo, loadSettings, repoSlug, sameRepo, saveSettings, type Settings } from './settings';
+import {
+  createLink,
+  describeAccess,
+  describeExpiry,
+  listLinks,
+  revokeLink,
+  shareFromLocation,
+  sharingAvailable,
+  ShareClient,
+  ShareError,
+  shareUrl,
+  type SharedRepo,
+  type ShareLink,
+} from './share';
 import { stash, takeStash, type Stash } from './stash';
 import { esc, formatBytes } from './util';
 
@@ -65,12 +79,22 @@ export function initJobs({ map, open, isSheet, setSheet, showLines, viewChanged 
   let savePickerOpen = false;
   let settingsPickerOpen = false;
 
-  const client = (slug: string) => new GitHub(parseRepo(slug)!, getToken);
+  // Opened from a share link: only that repo's jobs, read through the link.
+  const shareSecret = shareFromLocation();
+  const shareClient = shareSecret ? new ShareClient(shareSecret) : undefined;
+  let shared: SharedRepo | undefined;
+  const isShared = (slug: string) => !!shared && sameRepo(slug, shared.repo);
+  const client = (slug: string): Pick<GitHub, 'readText' | 'commits'> =>
+    isShared(slug) ? shareClient! : new GitHub(parseRepo(slug)!, getToken);
+  /** The repos in the list: the shared one, or the ones picked in settings. */
+  const listedRepos = () => (shareClient ? repos.map((r) => r.ref) : settings.repos);
+  let sharePanel: { repo: string; job?: JobFeature; links?: ShareLink[]; error?: string; created?: string } | undefined;
   const key = (repo: string, f: JobFeature) => `${repo}|${f.properties.path}`;
 
   // ------------------------------------------------------------ loading
 
   async function refresh() {
+    if (shareClient) return refreshShared();
     const status = $('#jobs-status');
     if (!settings.repos.length) {
       repos = [];
@@ -105,6 +129,54 @@ export function initJobs({ map, open, isSheet, setSheet, showLines, viewChanged 
     fitJobs();
   }
 
+  async function refreshShared() {
+    setJobsStatus('Opening the shared jobs…');
+    try {
+      shared = await shareClient!.open();
+    } catch (e) {
+      shared = undefined;
+      repos = [];
+      renderBanner((e as Error).message);
+      setJobsStatus('');
+      render();
+      renderSaveRow();
+      return;
+    }
+    const s = shared;
+    repos = [{ ref: parseRepo(s.repo)!, info: { private: s.private, defaultBranch: s.defaultBranch, canPush: s.upload, empty: false }, jobs: s.index.features }];
+    loadedOnce = true;
+    renderBanner();
+    const n = s.index.features.length;
+    setJobsStatus(s.job ? '' : n ? `${n} job${n === 1 ? '' : 's'}. Tap one to download it.` : 'No jobs here yet.');
+    render();
+    renderSaveRow();
+    if (s.job) {
+      const job = s.index.features[0];
+      if (job) openJob(s.repo, job);
+      else setJobsStatus("That job isn't in the repo any more.", true);
+    } else {
+      fitJobs();
+    }
+  }
+
+  function renderBanner(error?: string) {
+    const el = $('#share-banner');
+    el.hidden = false;
+    el.classList.toggle('error', !!error);
+    if (error) {
+      el.innerHTML = `<strong>This link doesn't work.</strong><br>${esc(error)}`;
+      return;
+    }
+    const s = shared!;
+    const job = s.job ? s.index.features[0] : undefined;
+    const what = s.job ? `the job <strong>${esc(s.index.features[0]?.properties.jobName ?? s.job)}</strong>` : `the jobs in <strong>${esc(s.repo.split('/')[1])}</strong>`;
+    el.innerHTML = `<p><span class="share-label">Shared link</span> <strong>${esc(s.createdBy)}</strong> shared ${what} with you.</p>
+      <p class="muted small">You can ${describeAccess(s)}. No sign-in needed. This link works ${describeExpiry(s)}.</p>
+      ${job ? `<div class="actions"><button class="primary" data-act="download">Download ${esc(job.properties.path.split('/').pop()!)}</button></div>` : ''}`;
+    // A link to one job: the download is the point, so it's right at the top.
+    if (job) el.querySelector('[data-act=download]')!.addEventListener('click', () => downloadJob(s.repo, job));
+  }
+
   // ------------------------------------------------------------ list
 
   function visibleJobs(): { repo: RepoState; job: JobFeature }[] {
@@ -121,9 +193,9 @@ export function initJobs({ map, open, isSheet, setSheet, showLines, viewChanged 
     const select = $<HTMLSelectElement>('#job-repo');
     const current = select.value;
     select.innerHTML =
-      `<option value="">All repos</option>` + settings.repos.map((r) => `<option>${esc(repoSlug(r))}</option>`).join('');
-    select.value = settings.repos.some((r) => repoSlug(r) === current) ? current : '';
-    select.hidden = settings.repos.length < 2;
+      `<option value="">All repos</option>` + listedRepos().map((r) => `<option>${esc(repoSlug(r))}</option>`).join('');
+    select.value = listedRepos().some((r) => repoSlug(r) === current) ? current : '';
+    select.hidden = listedRepos().length < 2;
 
     const rows = visibleJobs().map(({ repo, job }) => {
       const k = key(repoSlug(repo.ref), job);
@@ -196,12 +268,21 @@ export function initJobs({ map, open, isSheet, setSheet, showLines, viewChanged 
         <button class="close" title="Close">×</button>
       </div>
       <div class="actions">
-        <button data-act="open" class="primary">Open</button>
-        <button data-act="download">Download .${esc(job.properties.path.split('.').pop() ?? 'jxl')}</button>
+        ${
+          isShared(slug)
+            ? `<button data-act="download" class="primary">Download .${esc(ext(job))}</button><button data-act="open">Open</button>`
+            : `<button data-act="open" class="primary">Open</button><button data-act="download">Download .${esc(ext(job))}</button>`
+        }
+        ${!shareClient && currentSession() && sharingAvailable() ? '<button data-act="share">Share</button>' : ''}
       </div>
       <table class="kv">${rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table>
       <details class="versions"><summary>Versions</summary><div class="versions-body muted">Loading…</div></details>
-      <p><a href="https://github.com/${esc(slug)}/commits/${esc(branch)}/${esc(p.path)}" target="_blank" rel="noopener">History on GitHub</a></p>
+      ${
+        // Someone using a link may have no GitHub account, and can't see a private repo there.
+        isShared(slug) && repo.info?.private
+          ? ''
+          : `<p><a href="https://github.com/${esc(slug)}/commits/${esc(branch)}/${esc(p.path)}" target="_blank" rel="noopener">History on GitHub</a></p>`
+      }
     `;
     el.querySelector('.close')!.addEventListener('click', () => {
       selected = undefined;
@@ -210,6 +291,7 @@ export function initJobs({ map, open, isSheet, setSheet, showLines, viewChanged 
     });
     el.querySelector('[data-act=open]')!.addEventListener('click', () => openJob(slug, job));
     el.querySelector('[data-act=download]')!.addEventListener('click', () => downloadJob(slug, job));
+    el.querySelector('[data-act=share]')?.addEventListener('click', () => openSharePanel(slug, job));
     const versions = el.querySelector<HTMLDetailsElement>('.versions')!;
     versions.addEventListener('toggle', () => versions.open && loadVersions(slug, job, versions.querySelector('.versions-body')!), { once: true });
   }
@@ -265,17 +347,13 @@ export function initJobs({ map, open, isSheet, setSheet, showLines, viewChanged 
 
   async function downloadJob(slug: string, job: JobFeature, sha?: string) {
     try {
-      const text = await fetchJob(slug, job, sha);
-      const url = URL.createObjectURL(new Blob([text], { type: /\.rw5$/i.test(job.properties.path) ? 'text/plain' : 'application/xml' }));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName(job, sha);
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      saveFile(await fetchJob(slug, job, sha), fileName(job, sha));
     } catch (e) {
       setJobsStatus(esc((e as Error).message), true);
     }
   }
+
+  const ext = (job: JobFeature) => job.properties.path.split('.').pop() ?? 'jxl';
 
   function fileName(job: JobFeature, sha?: string) {
     const base = job.properties.path.split('/').pop()!;
@@ -389,12 +467,13 @@ export function initJobs({ map, open, isSheet, setSheet, showLines, viewChanged 
   }
 
   /** The repo the open file came from, else the one picked last time. */
-  const uploadTarget = () => saveTarget?.origin?.repo ?? settings.uploadRepo;
+  const uploadTarget = () => (shareClient ? shared?.repo : (saveTarget?.origin?.repo ?? settings.uploadRepo));
 
   function renderSaveRow() {
     const el = $('#save-row');
     el.hidden = !saveTarget;
     if (!saveTarget) return;
+    if (shareClient) return renderSharedSaveRow(el);
     const session = currentSession();
     if (!session) {
       el.innerHTML = signInAvailable()
@@ -441,6 +520,31 @@ export function initJobs({ map, open, isSheet, setSheet, showLines, viewChanged 
     }
   }
 
+  /** Through a share link: download what's open, and upload if the link allows it. */
+  function renderSharedSaveRow(el: HTMLElement) {
+    const t = saveTarget!;
+    const fromLink = !!t.origin && isShared(t.origin.repo);
+    const canUpload = !!shared?.upload;
+    el.innerHTML = `
+      ${fromLink && !shared?.job ? `<div class="actions"><button id="download-open" class="primary">Download ${esc(t.name)}</button></div>` : ''}
+      ${
+        canUpload
+          ? `<div class="share-upload">
+              <label for="uploader">Your name <span class="muted">(optional, saved with the upload)</span></label>
+              <input id="uploader" maxlength="60" autocomplete="name" value="${esc(readUploader())}" />
+              <button id="save-btn" class="${fromLink ? '' : 'primary'}">Upload to ${esc(shared!.repo.split('/')[1])}</button>
+            </div>`
+          : !fromLink && shared
+            ? '<p class="muted small">This link is for viewing only, so files opened here stay on this device.</p>'
+            : ''
+      }
+      <div id="save-status" class="muted"></div>`;
+    el.hidden = !fromLink && !shared;
+    el.querySelector('#download-open')?.addEventListener('click', () => saveFile(t.text, t.name));
+    el.querySelector('#uploader')?.addEventListener('change', (e) => writeUploader((e.target as HTMLInputElement).value));
+    el.querySelector('#save-btn')?.addEventListener('click', () => upload(shared!.repo));
+  }
+
   async function upload(slug: string) {
     if (!saveTarget) return;
     const btn = $<HTMLButtonElement>('#save-btn');
@@ -448,11 +552,17 @@ export function initJobs({ map, open, isSheet, setSheet, showLines, viewChanged 
     btn.disabled = true;
     status.textContent = `Uploading to ${slug}…`;
     try {
-      const r = await saveJob(client(slug), saveTarget.text, saveTarget.doc, saveTarget.name);
-      status.innerHTML =
-        r.status === 'unchanged'
-          ? `Already uploaded: ${esc(slug)} has this exact file.`
-          : `Uploaded to <a href="https://github.com/${esc(slug)}/commit/${r.commit}" target="_blank" rel="noopener">${esc(slug)}</a>.`;
+      let r: SaveResult;
+      if (isShared(slug)) {
+        const by = document.querySelector<HTMLInputElement>('#uploader')?.value.trim() ?? '';
+        writeUploader(by);
+        r = await shareClient!.upload(saveTarget.text, saveTarget.doc, saveTarget.name, by);
+      } else {
+        r = await saveJob(new GitHub(parseRepo(slug)!, getToken), saveTarget.text, saveTarget.doc, saveTarget.name);
+      }
+      // Someone using a link may not be able to open a private repo on GitHub.
+      const where = isShared(slug) && shared?.private ? esc(slug) : `<a href="https://github.com/${esc(slug)}/commit/${r.status === 'saved' ? r.commit : ''}" target="_blank" rel="noopener">${esc(slug)}</a>`;
+      status.innerHTML = r.status === 'unchanged' ? `Already uploaded: ${esc(slug)} has this exact file.` : `Uploaded to ${where}.`;
       saveTarget.origin = { repo: slug, path: r.path };
       loadedOnce = false; // reload the list next time Jobs is shown
     } catch (e) {
@@ -542,7 +652,8 @@ export function initJobs({ map, open, isSheet, setSheet, showLines, viewChanged 
       .map((r) => {
         const state = repos.find((x) => repoSlug(x.ref) === repoSlug(r));
         const tag = state?.info ? (state.info.private ? 'private' : 'public') : state?.error ? 'error' : '';
-        return `<li><span>${esc(repoSlug(r))} ${tag ? `<span class="tag ${tag}">${tag}</span>` : ''}</span><button data-remove="${esc(repoSlug(r))}" title="Remove from this list">×</button></li>`;
+        const share = session && sharingAvailable() ? `<button class="link" data-share="${esc(repoSlug(r))}">Share</button>` : '';
+        return `<li><span>${esc(repoSlug(r))} ${tag ? `<span class="tag ${tag}">${tag}</span>` : ''}</span><span class="row-actions">${share}<button data-remove="${esc(repoSlug(r))}" title="Remove from this list">×</button></span></li>`;
       })
       .join('');
     const account = session
@@ -590,6 +701,7 @@ export function initJobs({ map, open, isSheet, setSheet, showLines, viewChanged 
           : undefined,
       });
     }
+    body.querySelectorAll<HTMLButtonElement>('[data-share]').forEach((b) => b.addEventListener('click', () => openSharePanel(b.dataset.share!)));
     body.querySelectorAll<HTMLButtonElement>('[data-remove]').forEach((b) =>
       b.addEventListener('click', () => {
         settings.repos = settings.repos.filter((r) => repoSlug(r) !== b.dataset.remove);
@@ -603,6 +715,150 @@ export function initJobs({ map, open, isSheet, setSheet, showLines, viewChanged 
     renderSettings();
     renderSaveRow();
     refresh();
+  }
+
+  // ------------------------------------------------------------ share links (repo admins)
+
+  function openSharePanel(repo: string, job?: JobFeature) {
+    sharePanel = { repo, job };
+    renderSharePanel();
+    loadLinks();
+    requestAnimationFrame(() => $('#share-panel').scrollIntoView({ block: 'start', behavior: 'smooth' }));
+  }
+
+  async function loadLinks() {
+    const panel = sharePanel;
+    if (!panel) return;
+    try {
+      const links = await listLinks(panel.repo);
+      panel.links = panel.job ? links.filter((l) => l.job === panel.job!.properties.path) : links;
+      panel.error = undefined;
+    } catch (e) {
+      panel.error = shareMessage(e);
+    }
+    if (panel === sharePanel) renderSharePanel();
+  }
+
+  function shareMessage(e: unknown) {
+    if (e instanceof ShareError && e.code === 'sign_in') {
+      signOut();
+      pickable = undefined;
+      renderSettings();
+    }
+    return (e as Error).message;
+  }
+
+  function renderSharePanel() {
+    const el = $('#share-panel');
+    el.hidden = !sharePanel;
+    if (!sharePanel) return;
+    const { repo, job, links, error, created } = sharePanel;
+    const name = job ? job.properties.jobName : repo.split('/')[1];
+    const list = links?.length
+      ? `<ul class="share-links">${links
+          .map((l) => {
+            const url = shareUrl(l.secret ?? '');
+            return `<li class="${l.id === created ? 'new' : ''}" data-id="${l.id}">
+              <div><strong>${esc(l.label)}</strong>${l.id === created ? ' <span class="tag public">new</span>' : ''}<br>
+                <span class="muted small">${l.job && !job ? `One job: ${esc(l.job.split('/')[1])} · ` : ''}${describeAccess(l)} · ${describeExpiry(l)}</span></div>
+              <input readonly value="${esc(url)}" aria-label="Link" />
+              <div class="actions">
+                <button data-act="copy" class="${l.id === created ? 'primary' : ''}">Copy link</button>
+                ${'share' in navigator ? '<button data-act="send">Send…</button>' : ''}
+                <button data-act="revoke" class="danger">Turn off</button>
+              </div>
+            </li>`;
+          })
+          .join('')}</ul>`
+      : links
+        ? `<p class="muted small">No links yet.</p>`
+        : '';
+    el.innerHTML = `
+      <div class="detail-head">
+        <h2>Share ${esc(name)}</h2>
+        <button class="close" title="Close">×</button>
+      </div>
+      <p class="small">${
+        job
+          ? `Anyone with the link can see this one job on the map and download it. They don't need a GitHub account.`
+          : `Anyone with a link can see every job in <strong>${esc(repo)}</strong> on the map and download it, and upload jobs if you allow it. They don't need a GitHub account.`
+      }</p>
+      <form class="share-form">
+        <label>Name <input name="label" maxlength="60" placeholder="${job ? esc(name) : 'Crew'}" autocomplete="off" /></label>
+        ${
+          job
+            ? ''
+            : `<div class="segmented share-access" role="radiogroup">
+                <label><input type="radio" name="access" value="view" checked /><span>View and download</span></label>
+                <label><input type="radio" name="access" value="upload" /><span>Also upload</span></label>
+              </div>`
+        }
+        <label>Stops working
+          <select name="expires">
+            <option value="1">in 1 day</option>
+            <option value="7">in a week</option>
+            <option value="30" selected>in 30 days</option>
+            <option value="90">in 90 days</option>
+            <option value="365">in a year</option>
+            <option value="">never</option>
+          </select>
+        </label>
+        <button type="submit" class="primary">Create link</button>
+      </form>
+      <div id="share-status" class="small ${error ? 'error-text' : 'muted'}">${error ? esc(error) : links ? '' : 'Loading links…'}</div>
+      ${list}`;
+    el.querySelector('.close')!.addEventListener('click', () => {
+      sharePanel = undefined;
+      renderSharePanel();
+    });
+    const form = el.querySelector<HTMLFormElement>('.share-form')!;
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const data = new FormData(form);
+      const btn = form.querySelector<HTMLButtonElement>('[type=submit]')!;
+      btn.disabled = true;
+      $('#share-status').textContent = 'Creating link…';
+      try {
+        const link = await createLink({
+          repo,
+          label: String(data.get('label') ?? '').trim(),
+          upload: data.get('access') === 'upload',
+          job: job?.properties.path,
+          expiresInDays: data.get('expires') ? Number(data.get('expires')) : undefined,
+        });
+        if (sharePanel?.repo !== repo) return;
+        sharePanel.links = [link, ...(sharePanel.links ?? [])];
+        sharePanel.created = link.id;
+        sharePanel.error = undefined;
+        renderSharePanel();
+      } catch (err) {
+        btn.disabled = false;
+        $('#share-status').innerHTML = `<span class="error-text">${esc(shareMessage(err))}</span>`;
+      }
+    });
+    el.querySelectorAll<HTMLLIElement>('.share-links li').forEach((li) => {
+      const link = links!.find((l) => l.id === li.dataset.id)!;
+      const url = li.querySelector('input')!.value;
+      li.querySelector('input')!.addEventListener('focus', (e) => (e.target as HTMLInputElement).select());
+      li.querySelector('[data-act=copy]')!.addEventListener('click', async (e) => {
+        const b = e.target as HTMLButtonElement;
+        b.textContent = (await copyText(url, li.querySelector('input')!)) ? 'Copied' : 'Select and copy above';
+        setTimeout(() => (b.textContent = 'Copy link'), 2000);
+      });
+      li.querySelector('[data-act=send]')?.addEventListener('click', () =>
+        navigator.share({ title: `OpenFieldView: ${link.label}`, url }).catch(() => undefined),
+      );
+      li.querySelector('[data-act=revoke]')!.addEventListener('click', async () => {
+        if (!confirm(`Turn off "${link.label}"? Anyone using it loses access straight away.`)) return;
+        try {
+          await revokeLink(link.id);
+          if (sharePanel) sharePanel.links = sharePanel.links?.filter((l) => l.id !== link.id);
+          renderSharePanel();
+        } catch (err) {
+          $('#share-status').innerHTML = `<span class="error-text">${esc(shareMessage(err))}</span>`;
+        }
+      });
+    });
   }
 
   // ------------------------------------------------------------ views
@@ -626,6 +882,14 @@ export function initJobs({ map, open, isSheet, setSheet, showLines, viewChanged 
   );
 
   renderSettings();
+  if (shareClient) {
+    // Only what the link gives: no GitHub account or repo settings.
+    $('#library-settings').hidden = true;
+    // Once the viewer has finished setting up.
+    queueMicrotask(() => showView('jobs'));
+    // Pasting another link into the address bar doesn't reload the page on its own.
+    window.addEventListener('hashchange', () => shareFromLocation() !== shareSecret && location.reload());
+  }
   resumeAfterGitHub();
 
   /** Pick up where the person left off before going to GitHub to sign in or choose repos. */
@@ -659,6 +923,50 @@ export function initJobs({ map, open, isSheet, setSheet, showLines, viewChanged 
   }
 
   return { addLayers, handleClick, setOpenFile, showView, isActive: () => active };
+}
+
+/** Hand the browser a file to save. */
+function saveFile(text: string, name: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: /\.rw5$/i.test(name) ? 'text/plain' : 'application/xml' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function copyText(text: string, input: HTMLInputElement): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Older Android WebViews: fall back to selecting it.
+    input.focus();
+    input.select();
+    try {
+      return document.execCommand('copy');
+    } catch {
+      return false;
+    }
+  }
+}
+
+const UPLOADER = 'openfieldview.uploader';
+
+function readUploader() {
+  try {
+    return localStorage.getItem(UPLOADER) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function writeUploader(name: string) {
+  try {
+    localStorage.setItem(UPLOADER, name.trim());
+  } catch {
+    // Private mode.
+  }
 }
 
 function formatDate(iso: string, time = false) {

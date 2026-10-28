@@ -9,3 +9,12 @@ ALLOWED_ORIGINS = "https://hallahan.github.io,http://localhost:5173"
 # GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET: set with
 #   npx wrangler secret put GITHUB_CLIENT_ID
 #   npx wrangler secret put GITHUB_CLIENT_SECRET
+
+# Share links keep their records in Workers KV. Create the namespace with
+#   npx wrangler kv namespace create SHARES
+# and paste the id it prints here. Then set the GitHub App's id and key:
+#   npx wrangler secret put GITHUB_APP_ID
+#   npx wrangler secret put GITHUB_APP_PRIVATE_KEY < your-app.private-key.pem
+# [[kv_namespaces]]
+# binding = "SHARES"
+# id = "<the id from kv namespace create>"

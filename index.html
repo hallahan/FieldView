@@ -16,6 +16,7 @@
           <h1><img class="logo" src="/binoculars.svg" alt="" />OpenFieldView</h1>
           <p class="sub">View Trimble JobXML (.jxl) and Carlson raw (.rw5) files in the browser. Nothing leaves your device unless you tap Upload.</p>
         </header>
+        <div id="share-banner" role="status" hidden></div>
 
         <nav id="views" class="segmented">
           <button data-view="viewer" class="active">Viewer</button>
@@ -116,6 +117,7 @@
           </div>
           <div id="jobs-status" role="status"></div>
           <div id="job-detail" hidden></div>
+          <section id="share-panel" hidden></section>
           <ul id="job-list"></ul>
           <details id="library-settings">
             <summary>GitHub account and repos</summary>

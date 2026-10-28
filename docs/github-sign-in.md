@@ -84,4 +84,6 @@ Sign-in only works from the addresses GitHub and the Worker know about. After a 
 
 Tokens last 8 hours and are renewed in the background for up to six months, after which they sign in again.
 
+To let people without a GitHub account see or upload jobs, see [share-links.md](share-links.md).
+
 For local development, put the same three values in a `.env.local` file as `VITE_GITHUB_CLIENT_ID`, `VITE_GITHUB_APP_SLUG` and `VITE_AUTH_URL`.

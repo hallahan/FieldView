@@ -388,3 +388,55 @@ button, input, select, textarea, summary, .segmented, #tabs, #points-table td { 
   #place-bar .align-actions { margin-left: 0; width: 100%; }
   #place-bar .align-actions button { flex: 1 1 auto; padding: 9px 6px; white-space: nowrap; }
 }
+
+/* Share links: the banner someone opening a link sees, and the panel a repo
+   admin makes links in. */
+#share-banner { padding: 10px 12px; border-radius: 8px; background: var(--panel); border-left: 4px solid var(--accent); font-family: var(--font-sans); }
+#share-banner p { margin: 0; }
+#share-banner p + p { margin-top: 4px; }
+#share-banner.error { background: #ffe3e3; color: #b42318; border-left-color: #b42318; }
+.share-label { display: inline-block; margin-right: 4px; padding: 1px 6px; border-radius: 4px; background: var(--accent); color: #fff; font: 600 11px var(--font-sans); text-transform: uppercase; letter-spacing: .05em; vertical-align: 1px; }
+#save-row .actions > button.primary { flex: 1; font-weight: 600; }
+.share-upload { display: grid; grid-template-columns: 1fr; gap: 6px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; }
+.share-upload label { font: 600 13px var(--font-sans); }
+.share-upload label .muted { font-weight: 400; }
+.share-upload input, .share-form input[name=label], .share-links input {
+  width: 100%; padding: 6px 8px; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+}
+.share-upload #save-btn { padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font-weight: 600; }
+.share-upload #save-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+#share-panel { padding: 12px; border: 2px solid var(--accent); border-radius: 8px; background: var(--panel); display: flex; flex-direction: column; gap: 10px; scroll-margin-top: 8px; }
+#share-panel .detail-head { position: static; margin: 0; padding: 0; background: none; border: none; flex-direction: row; justify-content: space-between; align-items: center; }
+#share-panel h2 { word-break: break-word; }
+#share-panel p { margin: 0; }
+#share-panel .close { background: none; border: none; font-size: 24px; line-height: 1; color: var(--muted); padding: 0 4px; }
+.share-form { display: flex; flex-direction: column; gap: 8px; font-family: var(--font-sans); }
+.share-form > label { display: flex; flex-direction: column; gap: 3px; font-size: 13px; font-weight: 600; }
+.share-form select { max-width: none; font-weight: 400; }
+.share-form input[name=label] { font-weight: 400; }
+.share-access { align-self: stretch; }
+.share-access label { flex: 1; cursor: pointer; }
+.share-access input { position: absolute; opacity: 0; pointer-events: none; }
+.share-access span { display: block; padding: 7px 10px; text-align: center; color: var(--muted); background: var(--bg); }
+.share-access input:checked + span { background: var(--active); color: var(--bg); font-weight: 600; }
+.share-access input:focus-visible + span { outline: 2px solid var(--link); outline-offset: -2px; }
+.share-form button[type=submit] { padding: 8px 12px; border-radius: 6px; font-weight: 600; }
+.share-links { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.share-links li { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); font-family: var(--font-sans); }
+.share-links li.new { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.share-links input { font: 13px var(--font-mono); color: var(--muted); background: var(--panel); }
+.actions button.danger { color: #c92a2a; margin-left: auto; }
+.row-actions { display: flex; align-items: center; gap: 10px; }
+.repo-list .row-actions button.link { font-size: inherit; color: var(--link); padding: 0; }
+@media (pointer: coarse) {
+  .share-upload input, .share-form input[name=label] { font-size: 16px; padding: 10px; }
+  .share-access span { padding: 12px 10px; }
+  .share-upload #save-btn, .share-form button[type=submit] { padding: 12px 14px; }
+  #share-panel .close { font-size: 30px; padding: 0 8px; }
+}
+#share-banner .actions { margin-top: 8px; }
+#share-banner .actions button { flex: 1; font-weight: 600; }
+/* The job panel's heading and its close button on one line. */
+#job-detail .detail-head { position: static; margin: 0; padding: 0; background: none; border: none; flex-direction: row; justify-content: space-between; align-items: center; }
+#job-detail .close, #share-panel .close { background: none; border: none; font-size: 24px; line-height: 1; color: var(--muted); padding: 0 4px; }
+@media (pointer: coarse) { #job-detail .close { font-size: 30px; padding: 0 8px; } }

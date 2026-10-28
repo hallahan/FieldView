@@ -53,7 +53,7 @@ export function parseIndex(text: string | undefined): JobIndex {
   return parsed;
 }
 
-export async function loadIndex(gh: GitHub): Promise<JobIndex> {
+export async function loadIndex(gh: Pick<GitHub, 'readText'>): Promise<JobIndex> {
   return parseIndex(await gh.readText(INDEX_PATH));
 }
 
@@ -99,30 +99,66 @@ export function footprint(doc: JxlDocument): { center: [number, number]; bbox: [
   return { center: [round(lon / pts.length), round(lat / pts.length)], bbox: bbox.map(round) as typeof bbox };
 }
 
-/** Add or update a job's entry, keeping the index sorted by name so diffs stay small. */
-export function upsertJob(index: JobIndex, doc: JxlDocument, name: string, blobSha: string, size: number, now: string): JobIndex {
-  const path = jobPath(name, doc.format);
-  const prev = index.features.find((f) => f.properties.path === path);
+/** What an upload says about a job; the rest of its index entry comes from the repo's history. */
+export interface JobEntry {
+  jobName: string;
+  path: string;
+  geometry: Point | null;
+  pointCount: number;
+  bbox?: [number, number, number, number];
+  controller?: string;
+  product?: string;
+  jobTimeStamp?: string;
+  crs?: string;
+  placement?: Placement;
+}
+
+export function jobEntry(doc: JxlDocument, name: string): JobEntry {
   const fp = footprint(doc);
+  return {
+    jobName: name,
+    path: jobPath(name, doc.format),
+    geometry: fp ? { type: 'Point', coordinates: fp.center } : null,
+    pointCount: doc.points.filter((p) => !p.deleted).length,
+    ...(fp && { bbox: fp.bbox }),
+    ...(doc.job.controllerSerialNumber && { controller: doc.job.controllerSerialNumber }),
+    ...(doc.job.product && { product: [doc.job.product, doc.job.productVersion].filter(Boolean).join(' ') }),
+    ...(doc.job.TimeStamp && { jobTimeStamp: doc.job.TimeStamp }),
+    ...(doc.crs.projection?.label && { crs: doc.crs.projection.label }),
+    ...(doc.placement && { placement: doc.placement }),
+  };
+}
+
+/**
+ * Add or update a job's entry, keeping the index sorted by name so diffs stay
+ * small. worker/auth.js does the same for uploads through a share link.
+ */
+export function upsertJob(index: JobIndex, doc: JxlDocument, name: string, blobSha: string, size: number, now: string): JobIndex {
+  return upsertEntry(index, jobEntry(doc, name), blobSha, size, now);
+}
+
+export function upsertEntry(index: JobIndex, entry: JobEntry, blobSha: string, size: number, now: string): JobIndex {
+  const { jobName, path, geometry, pointCount, bbox, controller, product, jobTimeStamp, crs, placement } = entry;
+  const prev = index.features.find((f) => f.properties.path === path);
   const feature: JobFeature = {
     type: 'Feature',
-    id: jobSlug(name),
-    geometry: fp ? { type: 'Point', coordinates: fp.center } : null,
+    id: jobSlug(jobName),
+    geometry,
     properties: {
-      jobName: name,
+      jobName,
       path,
       blobSha,
       size,
-      pointCount: doc.points.filter((p) => !p.deleted).length,
-      ...(fp && { bbox: fp.bbox }),
+      pointCount,
+      ...(bbox && { bbox }),
       firstUpload: prev?.properties.firstUpload ?? now,
       lastUpload: now,
       uploadCount: (prev?.properties.uploadCount ?? 0) + 1,
-      ...(doc.job.controllerSerialNumber && { controller: doc.job.controllerSerialNumber }),
-      ...(doc.job.product && { product: [doc.job.product, doc.job.productVersion].filter(Boolean).join(' ') }),
-      ...(doc.job.TimeStamp && { jobTimeStamp: doc.job.TimeStamp }),
-      ...(doc.crs.projection?.label && { crs: doc.crs.projection.label }),
-      ...(doc.placement && { placement: doc.placement }),
+      ...(controller && { controller }),
+      ...(product && { product }),
+      ...(jobTimeStamp && { jobTimeStamp }),
+      ...(crs && { crs }),
+      ...(placement && { placement }),
     },
   };
   const features = index.features.filter((f) => f.properties.path !== path).concat(feature);
