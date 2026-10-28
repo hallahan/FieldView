@@ -25,9 +25,10 @@
         <div id="view-viewer" class="view">
           <label id="dropzone" for="file-input">
             <!-- No accept filter: Android pickers grey out unknown extensions like .jxl and .rw5. -->
-            <input id="file-input" type="file" hidden />
+            <input id="file-input" type="file" multiple hidden />
             <strong>Open a .jxl or .rw5 file</strong>
-            <span class="drop-hint">or drop it anywhere on the page</span>
+            <span>Pick it with its photos to upload them together, or open a .zip of the job's folder</span>
+            <span class="drop-hint">or drop them anywhere on the page</span>
           </label>
           <div class="samples">
             <button id="sample-btn" class="link">Try a sample file</button>
@@ -112,13 +113,12 @@
         <div id="view-jobs" class="view" hidden>
           <div class="points-tools">
             <input id="job-search" type="search" placeholder="Filter jobs" />
-            <select id="job-repo" title="Repo"></select>
           </div>
           <div id="jobs-status" role="status"></div>
           <div id="job-detail" hidden></div>
           <ul id="job-list"></ul>
           <details id="library-settings">
-            <summary>GitHub account and repos</summary>
+            <summary>Account</summary>
             <div id="settings-body"></div>
           </details>
         </div>
@@ -155,7 +155,7 @@
             <button id="place-done" class="primary">Done</button>
           </div>
         </div>
-        <div id="drop-overlay" hidden>Drop a .jxl or .rw5 job, or an .fxl feature library</div>
+        <div id="drop-overlay" hidden>Drop a .jxl or .rw5 job, photos or a .zip to upload with it, or an .fxl feature library</div>
       </main>
     </div>
     <script type="module" src="/src/main.ts"></script>

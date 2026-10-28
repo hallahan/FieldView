@@ -1,50 +1,47 @@
-// The Jobs view: jobs saved in GitHub repos as a list and as pins on the map,
-// plus uploading the open file and the GitHub sign-in and repo choices.
+// The Jobs view: jobs kept in the OpenFieldView bucket as a list and as pins
+// on the map, plus uploading the open file with its photos and attachments.
+//
+// Signing in is Cloudflare Access's job: the site only opens for people its
+// policy allows, so here we just ask the server who that is.
 
 import maplibregl, { type GeoJSONSource, type MapMouseEvent } from 'maplibre-gl';
 import type { FeatureCollection, Point } from 'geojson';
-import {
-  beginSignIn,
-  chooseReposUrl,
-  completeRedirect,
-  currentSession,
-  getToken,
-  listRepos,
-  signInAvailable,
-  SignInExpired,
-  signOut,
-  type PickableRepo,
-} from './auth';
-import { GitHub, GitHubError, parseRepo, type Commit, type RepoInfo, type RepoRef } from './github';
+import { ApiError, fileUrl, loadIndex, loadVersions, post, readFile, SignInExpired, whoAmI, type Who } from './api';
 import type { JxlDocument } from './jxl';
-import { loadIndex, saveJob, type JobFeature } from './library';
+import { isViewable, stampTime, type IndexEntry, type JobIndex, type StoredFile, type StoredPlacement, type VersionList } from './layout';
 import type { Placement } from './placement';
-import { addRepo, loadSettings, repoSlug, sameRepo, saveSettings, type Settings } from './settings';
-import { stash, takeStash, type Stash } from './stash';
+import { stash, takeStash } from './stash';
+import { addItems, expandZips, jobName, referencedMedia, summarize, upload, type UploadItem } from './upload';
 import { esc, formatBytes } from './util';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
 
-/** Where an open file came from, so saving it again defaults to the same repo. */
+/** Where an open file came from in the bucket. */
 export interface JobOrigin {
-  repo: string;
-  path: string;
-  /** Commit the file was read at, when it's an older version. */
-  version?: string;
-  /** Where the job was placed on the map by hand, from the repo's index. */
+  folder: string;
+  /** The upload it was read from. */
+  stamp: string;
+  key: string;
+  /** True when it's not the newest upload of the job. */
+  older?: boolean;
+  /** Where the job was placed on the map by hand, from the job's placement.json. */
   placement?: Placement;
 }
 
-interface RepoState {
-  ref: RepoRef;
-  info?: RepoInfo;
-  jobs: JobFeature[];
-  error?: string;
+/** The file open in the viewer, and what will go up with it. */
+export interface OpenFile {
+  /** Missing for a file the viewer can't show, like a Trimble .job on its own. */
+  doc?: JxlDocument;
+  text?: string;
+  name: string;
+  /** The file itself, when it isn't text the viewer read. */
+  blob?: Blob;
+  origin?: JobOrigin;
 }
 
 interface Options {
   map: maplibregl.Map;
-  open: (text: string, name: string, size: number, origin: JobOrigin) => void;
+  open: (text: string, name: string, size: number, origin: JobOrigin, extras?: File[]) => void;
   isSheet: () => boolean;
   setSheet: (expanded: boolean) => void;
   /** Whether the viewer's linework toggle is on. */
@@ -55,91 +52,81 @@ interface Options {
 
 const PIN = '#1c7ed6';
 
+/**
+ * Folder picking only works in desktop browsers: Chrome on Android (the
+ * TSC710, phones) shows the input but can only pick files.
+ */
+const canPickFolder = 'webkitdirectory' in document.createElement('input') && !/Android|iPhone|iPad/i.test(navigator.userAgent);
+
 export function initJobs({ map, open, isSheet, setSheet, showLines, viewChanged }: Options) {
-  const settings: Settings = loadSettings();
-  let repos: RepoState[] = [];
+  let who: Who | undefined;
+  const whoReady = whoAmI().then(
+    (w) => (who = w),
+    (e) => (who = e instanceof SignInExpired ? { none: 'not-set-up', message: e.message } : { none: 'no-server' }),
+  );
+  let index: JobIndex | undefined;
   let loadedOnce = false;
   let active = false;
   let selected: string | undefined;
-  let saveTarget: { doc: JxlDocument; text: string; name: string; origin?: JobOrigin } | undefined;
-  let savePickerOpen = false;
-  let settingsPickerOpen = false;
-
-  const client = (slug: string) => new GitHub(parseRepo(slug)!, getToken);
-  const key = (repo: string, f: JobFeature) => `${repo}|${f.properties.path}`;
+  let openFile: OpenFile | undefined;
+  /** Photos, attachments and the .job going up with the open file. */
+  let extras: UploadItem[] = [];
+  let uploading = false;
 
   // ------------------------------------------------------------ loading
 
   async function refresh() {
-    const status = $('#jobs-status');
-    if (!settings.repos.length) {
-      repos = [];
-      status.innerHTML = currentSession() ? 'Pick a repo below to see its jobs.' : 'Sign in with GitHub below to see your jobs.';
-      ($('#library-settings') as HTMLDetailsElement).open = true;
-      if (currentSession() && !settingsPickerOpen) {
-        settingsPickerOpen = true;
-        renderSettings();
-      }
+    await whoReady;
+    renderAccount();
+    if (!who || !('email' in who)) {
+      setJobsStatus(esc(unavailable()), who && 'none' in who && who.none === 'not-set-up');
       render();
       return;
     }
-    status.textContent = 'Loading jobs…';
-    repos = await Promise.all(
-      settings.repos.map(async (ref): Promise<RepoState> => {
-        const gh = new GitHub(ref, getToken);
-        try {
-          const [info, index] = await Promise.all([gh.info(), loadIndex(gh)]);
-          return { ref, info, jobs: index.features };
-        } catch (e) {
-          return { ref, jobs: [], error: (e as Error).message };
-        }
-      }),
-    );
-    loadedOnce = true;
-    renderSettings();
-    const n = repos.reduce((s, r) => s + r.jobs.length, 0);
-    const errors = repos.filter((r) => r.error).map((r) => `<br><span class="error-text">${esc(repoSlug(r.ref))}: ${esc(r.error!)}</span>`);
-    status.innerHTML = `${n} job${n === 1 ? '' : 's'} in ${repos.length} repo${repos.length === 1 ? '' : 's'}.${errors.join('')}`;
+    setJobsStatus('Loading jobs…');
+    try {
+      index = await loadIndex();
+      loadedOnce = true;
+      const n = index?.jobs.length ?? 0;
+      setJobsStatus(n ? '' : 'No jobs uploaded yet. Open a job in the Viewer and tap Upload.');
+    } catch (e) {
+      setJobsStatus(esc(message(e)), true);
+    }
     render();
-    renderSaveRow();
     fitJobs();
+  }
+
+  function unavailable(): string {
+    if (who && 'none' in who && who.none === 'not-set-up') return who.message ?? 'Uploads are switched off on this site.';
+    return 'Saved jobs live on your OpenFieldView server, and this copy of the site has none. The viewer works the same without one.';
+  }
+
+  function message(e: unknown): string {
+    return (e as Error).message;
   }
 
   // ------------------------------------------------------------ list
 
-  function visibleJobs(): { repo: RepoState; job: JobFeature }[] {
+  const jobs = () => index?.jobs ?? [];
+
+  function visibleJobs(): IndexEntry[] {
     const q = $<HTMLInputElement>('#job-search').value.trim().toLowerCase();
-    const only = $<HTMLSelectElement>('#job-repo').value;
-    return repos
-      .filter((r) => !only || repoSlug(r.ref) === only)
-      .flatMap((repo) => repo.jobs.map((job) => ({ repo, job })))
-      .filter(({ job }) => !q || job.properties.jobName.toLowerCase().includes(q))
-      .sort((a, b) => b.job.properties.lastUpload.localeCompare(a.job.properties.lastUpload));
+    return jobs()
+      .filter((j) => !q || j.job.toLowerCase().includes(q))
+      .sort((a, b) => b.lastUpload.localeCompare(a.lastUpload));
   }
 
   function render() {
-    const select = $<HTMLSelectElement>('#job-repo');
-    const current = select.value;
-    select.innerHTML =
-      `<option value="">All repos</option>` + settings.repos.map((r) => `<option>${esc(repoSlug(r))}</option>`).join('');
-    select.value = settings.repos.some((r) => repoSlug(r) === current) ? current : '';
-    select.hidden = settings.repos.length < 2;
-
-    const rows = visibleJobs().map(({ repo, job }) => {
-      const k = key(repoSlug(repo.ref), job);
-      const p = job.properties;
-      return `<li data-key="${esc(k)}" class="${k === selected ? 'selected' : ''}">
-        <strong>${esc(p.jobName)}</strong>
-        <span class="muted">${formatDate(p.lastUpload)} · ${p.pointCount} pts${repos.length > 1 ? ` · ${repoLabel(repo)}` : ''}${job.geometry ? '' : ' · no position'}</span>
-      </li>`;
-    });
-    $('#job-list').innerHTML = rows.join('');
+    $('#job-list').innerHTML = visibleJobs()
+      .map(
+        (j) => `<li data-key="${esc(j.folder)}" class="${j.folder === selected ? 'selected' : ''}">
+        <strong>${esc(j.job)}</strong>
+        <span class="muted">${formatDate(j.lastUpload)} · ${j.pointCount ?? '?'} pts · ${j.uploads} upload${j.uploads === 1 ? '' : 's'}${j.center ? '' : ' · no position'}</span>
+      </li>`,
+      )
+      .join('');
     renderDetail();
     (map.getSource('jobs') as GeoJSONSource | undefined)?.setData(toGeoJSON());
-  }
-
-  function repoLabel(r: RepoState) {
-    return `${esc(repoSlug(r.ref))}${r.info?.private ? ' 🔒' : ''}`;
   }
 
   $('#job-list').addEventListener('click', (e) => {
@@ -147,23 +134,15 @@ export function initJobs({ map, open, isSheet, setSheet, showLines, viewChanged 
     if (li) select(li.dataset.key!, true);
   });
   $('#job-search').addEventListener('input', render);
-  $('#job-repo').addEventListener('change', () => {
-    render();
-    fitJobs();
-  });
 
-  function find(k: string) {
-    for (const repo of repos) for (const job of repo.jobs) if (key(repoSlug(repo.ref), job) === k) return { repo, job };
-    return undefined;
-  }
+  const find = (folder: string) => jobs().find((j) => j.folder === folder);
 
-  function select(k: string, fly: boolean) {
-    selected = k;
-    const hit = find(k);
-    if (fly && hit?.job.geometry) {
-      const bbox = hit.job.properties.bbox;
-      if (bbox) map.fitBounds(bbox, { padding: isSheet() ? 30 : 60, maxZoom: 17, duration: 600 });
-      else map.flyTo({ center: hit.job.geometry.coordinates as [number, number], zoom: 16 });
+  function select(folder: string, fly: boolean) {
+    selected = folder;
+    const job = find(folder);
+    if (fly && job?.center) {
+      if (job.bbox) map.fitBounds(job.bbox, { padding: isSheet() ? 30 : 60, maxZoom: 17, duration: 600 });
+      else map.flyTo({ center: job.center, zoom: 16 });
     }
     if (isSheet()) setSheet(false);
     setSelectedFilter();
@@ -173,113 +152,88 @@ export function initJobs({ map, open, isSheet, setSheet, showLines, viewChanged 
 
   function renderDetail() {
     const el = $('#job-detail');
-    const hit = selected ? find(selected) : undefined;
-    el.hidden = !hit;
-    if (!hit) return;
-    const { repo, job } = hit;
-    const p = job.properties;
-    const slug = repoSlug(repo.ref);
-    const branch = repo.info?.defaultBranch ?? 'main';
+    const job = selected ? find(selected) : undefined;
+    el.hidden = !job;
+    if (!job) return;
     const rows: [string, string][] = [
-      ['Repo', repoLabel(repo)],
-      ['Last upload', esc(formatDate(p.lastUpload, true))],
-      ['First upload', esc(formatDate(p.firstUpload, true))],
-      ['Uploads', String(p.uploadCount)],
-      ['Points', String(p.pointCount)],
-      ['Size', formatBytes(p.size)],
-      ...(p.controller ? [['Controller', esc(p.controller)] as [string, string]] : []),
-      ...(p.crs ? [['Coordinate system', esc(p.crs)] as [string, string]] : []),
+      ['Last upload', `${esc(formatDate(job.lastUpload, true))}<span class="sub-value">${esc(job.lastUploadedBy)}</span>`],
+      ['First upload', esc(formatDate(job.firstUpload, true))],
+      ['Uploads', String(job.uploads)],
+      ...(job.pointCount !== undefined ? [['Points', String(job.pointCount)] as [string, string]] : []),
+      ...(job.controller ? [['Controller', esc(job.controller)] as [string, string]] : []),
+      ...(job.crs ? [['Coordinate system', esc(job.crs)] as [string, string]] : []),
+      ['Folder', `<span class="key">${esc(job.folder)}/</span>`],
     ];
+    const main = job.main;
     el.innerHTML = `
       <div class="detail-head">
-        <h2>${esc(p.jobName)}</h2>
+        <h2>${esc(job.job)}</h2>
         <button class="close" title="Close">×</button>
       </div>
       <div class="actions">
-        <button data-act="open" class="primary">Open</button>
-        <button data-act="download">Download .${esc(job.properties.path.split('.').pop() ?? 'jxl')}</button>
+        ${main ? `<button data-act="open" class="primary">Open</button><a class="button" href="${esc(fileUrl(main, true))}">Download .${esc(main.split('.').pop()!)}</a>` : '<span class="muted">No .jxl or .rw5 in the latest upload.</span>'}
       </div>
       <table class="kv">${rows.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table>
-      <details class="versions"><summary>Versions</summary><div class="versions-body muted">Loading…</div></details>
-      <p><a href="https://github.com/${esc(slug)}/commits/${esc(branch)}/${esc(p.path)}" target="_blank" rel="noopener">History on GitHub</a></p>
+      <details class="versions"><summary>Uploads and files</summary><div class="versions-body muted">Loading…</div></details>
     `;
     el.querySelector('.close')!.addEventListener('click', () => {
       selected = undefined;
       setSelectedFilter();
       render();
     });
-    el.querySelector('[data-act=open]')!.addEventListener('click', () => openJob(slug, job));
-    el.querySelector('[data-act=download]')!.addEventListener('click', () => downloadJob(slug, job));
+    el.querySelector('[data-act=open]')?.addEventListener('click', () => openKey(job, main!, job.latest));
     const versions = el.querySelector<HTMLDetailsElement>('.versions')!;
-    versions.addEventListener('toggle', () => versions.open && loadVersions(slug, job, versions.querySelector('.versions-body')!), { once: true });
+    versions.addEventListener('toggle', () => versions.open && renderVersions(job, versions.querySelector('.versions-body')!), { once: true });
   }
 
-  async function loadVersions(slug: string, job: JobFeature, el: HTMLElement) {
-    let list: Commit[];
+  async function renderVersions(job: IndexEntry, el: HTMLElement) {
+    let list: VersionList | undefined;
     try {
-      list = await client(slug).commits(job.properties.path);
+      list = await loadVersions(job.folder);
     } catch (e) {
-      el.innerHTML = `<span class="error-text">${esc((e as Error).message)}</span>`;
+      el.innerHTML = `<span class="error-text">${esc(message(e))}</span>`;
+      return;
+    }
+    if (!list) {
+      el.textContent = 'versions.json is missing. Rebuild the job list (under Account) to bring it back.';
       return;
     }
     el.classList.remove('muted');
-    el.innerHTML = `<ul class="version-list">${list
+    const fileLink = (f: StoredFile) =>
+      `<li><a href="${esc(fileUrl(f.key))}" target="_blank" rel="noopener">${esc(f.name)}</a> <span class="muted">${formatBytes(f.size)}</span>
+        <a class="dl" href="${esc(fileUrl(f.key, true))}" title="Download ${esc(f.name)}" aria-label="Download ${esc(f.name)}">⤓</a></li>`;
+    el.innerHTML = `<ul class="version-list">${list.versions
       .map(
-        (c, i) => `<li>
-          <span>${esc(formatDate(c.date, true))}${i === 0 ? ' <span class="muted">latest</span>' : ''}<br><span class="muted">${esc(c.message.split('\n')[0])}</span></span>
-          <span class="actions">
-            <button data-sha="${c.sha}" data-act="open">Open</button>
-            <button data-sha="${c.sha}" data-act="download" title="Download">⤓</button>
-          </span>
+        (v, i) => `<li>
+          <div class="version-head">
+            <span><strong>${esc(formatDate(v.uploadedAt, true))}</strong>${i === 0 ? ' <span class="tag">latest</span>' : ''}<br>
+              <span class="muted">${esc(v.uploadedBy)} · <span class="key">${esc(v.stamp)}</span></span></span>
+            ${v.main ? `<span class="actions"><button data-key="${esc(v.main)}" data-stamp="${esc(v.stamp)}">Open</button></span>` : ''}
+          </div>
+          ${v.note ? `<p class="note">${esc(v.note)}</p>` : ''}
+          <ul class="files">${v.files.map(fileLink).join('')}${v.media.map(fileLink).join('')}</ul>
         </li>`,
       )
       .join('')}</ul>`;
-    el.querySelectorAll<HTMLButtonElement>('button').forEach((b) =>
-      b.addEventListener('click', () =>
-        b.dataset.act === 'open' ? openJob(slug, job, b.dataset.sha) : downloadJob(slug, job, b.dataset.sha),
-      ),
-    );
+    el.querySelectorAll<HTMLButtonElement>('button[data-key]').forEach((b) => b.addEventListener('click', () => openKey(job, b.dataset.key!, b.dataset.stamp!)));
   }
 
-  async function fetchJob(slug: string, job: JobFeature, sha?: string) {
-    const text = await client(slug).readText(job.properties.path, sha);
-    if (text === undefined) throw new Error(`${job.properties.path} isn't in ${slug} any more. Try reloading the list.`);
-    return text;
-  }
-
-  async function openJob(slug: string, job: JobFeature, sha?: string) {
-    setJobsStatus(`Opening ${esc(job.properties.jobName)}…`);
+  async function openKey(job: IndexEntry, key: string, at: string) {
+    setJobsStatus(`Opening ${esc(job.job)}…`);
     try {
-      const text = await fetchJob(slug, job, sha);
+      const text = await (await readFile(key)).text();
       setJobsStatus('');
-      open(text, fileName(job, sha), new TextEncoder().encode(text).length, {
-        repo: slug,
-        path: job.properties.path,
-        version: sha,
-        placement: job.properties.placement,
+      open(text, key.split('/').pop()!, new TextEncoder().encode(text).length, {
+        folder: job.folder,
+        stamp: at,
+        key,
+        older: at !== job.latest,
+        placement: job.placement,
       });
     } catch (e) {
-      setJobsStatus(esc((e as Error).message), true);
+      if (e instanceof SignInExpired) return expiredInJobs();
+      setJobsStatus(esc(message(e)), true);
     }
-  }
-
-  async function downloadJob(slug: string, job: JobFeature, sha?: string) {
-    try {
-      const text = await fetchJob(slug, job, sha);
-      const url = URL.createObjectURL(new Blob([text], { type: /\.rw5$/i.test(job.properties.path) ? 'text/plain' : 'application/xml' }));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName(job, sha);
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (e) {
-      setJobsStatus(esc((e as Error).message), true);
-    }
-  }
-
-  function fileName(job: JobFeature, sha?: string) {
-    const base = job.properties.path.split('/').pop()!;
-    return sha ? base.replace(/\.(jxl|rw5)$/i, (ext) => `_${sha.slice(0, 7)}${ext}`) : base;
   }
 
   function setJobsStatus(html: string, error = false) {
@@ -288,18 +242,19 @@ export function initJobs({ map, open, isSheet, setSheet, showLines, viewChanged 
     el.classList.toggle('error', error);
   }
 
+  function expiredInJobs() {
+    setJobsStatus(`${esc(new SignInExpired().message)} <button class="link" data-act="reload">Sign in again</button>`, true);
+    $('#jobs-status [data-act=reload]').addEventListener('click', () => location.reload());
+  }
+
   // ------------------------------------------------------------ map
 
   function toGeoJSON(): FeatureCollection {
     return {
       type: 'FeatureCollection',
       features: visibleJobs()
-        .filter(({ job }) => job.geometry)
-        .map(({ repo, job }) => ({
-          type: 'Feature',
-          geometry: job.geometry as Point,
-          properties: { key: key(repoSlug(repo.ref), job), name: job.properties.jobName },
-        })),
+        .filter((j) => j.center)
+        .map((j) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: j.center! }, properties: { key: j.folder, name: j.job } })),
     };
   }
 
@@ -379,230 +334,173 @@ export function initJobs({ map, open, isSheet, setSheet, showLines, viewChanged 
     else if (on) fitJobs();
   }
 
-  // ------------------------------------------------------------ saving
+  // ------------------------------------------------------------ uploading
 
-  /** Call whenever a file is opened in the viewer. */
-  function setOpenFile(target: typeof saveTarget) {
-    saveTarget = target;
-    savePickerOpen = false;
+  /** Call whenever a file is opened in the viewer, with any files picked alongside it. */
+  function setOpenFile(file: OpenFile | undefined, alongside: File[] = []) {
+    const sameJob = openFile && file && uploadName(openFile) === uploadName(file);
+    openFile = file;
+    // Photos added for this job stay when it's reopened, say after changing the coordinate system.
+    if (!sameJob) extras = [];
+    extras = addItems(extras, alongside);
     renderSaveRow();
   }
 
-  /** The repo the open file came from, else the one picked last time. */
-  const uploadTarget = () => saveTarget?.origin?.repo ?? settings.uploadRepo;
-
-  function renderSaveRow() {
-    const el = $('#save-row');
-    el.hidden = !saveTarget;
-    if (!saveTarget) return;
-    const session = currentSession();
-    if (!session) {
-      el.innerHTML = signInAvailable()
-        ? `<button id="signin-btn" class="primary github">${GITHUB_MARK} Sign in with GitHub to upload</button><div id="save-status" class="muted"></div>`
-        : `<p class="muted small">Uploading needs GitHub sign-in, which isn't set up on this site yet.</p><div id="save-status" class="muted"></div>`;
-      el.querySelector('#signin-btn')?.addEventListener('click', () => signIn('upload'));
-      return;
-    }
-    const target = uploadTarget();
-    const picking = savePickerOpen || !target;
-    el.innerHTML = `
-      <div class="save-controls" ${picking ? 'hidden' : ''}>
-        <button id="save-btn" class="primary" title="Upload to ${esc(target ?? '')}">Upload to ${esc(target?.split('/')[1] ?? '')}</button>
-        <button id="change-repo">Change</button>
-      </div>
-      <div id="save-picker" ${picking ? '' : 'hidden'}></div>
-      <div id="save-status" class="muted"></div>`;
-    el.querySelector('#save-btn')!.addEventListener('click', () => upload(target!));
-    el.querySelector('#change-repo')!.addEventListener('click', () => {
-      savePickerOpen = true;
-      renderSaveRow();
-    });
-    if (picking) {
-      renderPicker($('#save-picker'), {
-        title: 'Pick the repo to upload to',
-        forUpload: true,
-        then: 'upload',
-        onPick: (slug) => {
-          settings.uploadRepo = slug;
-          addRepo(settings, slug);
-          saveSettings(settings);
-          savePickerOpen = false;
-          renderSettings();
-          renderSaveRow();
-          upload(slug);
-        },
-        onCancel: target
-          ? () => {
-              savePickerOpen = false;
-              renderSaveRow();
-            }
-          : undefined,
-      });
-    }
+  /** Photos or other files dropped while a job is open: they go up with it. */
+  function addExtras(files: File[]) {
+    extras = addItems(extras, files);
+    renderSaveRow();
+    ($('#upload-extras') as HTMLDetailsElement | null)?.setAttribute('open', '');
   }
 
-  async function upload(slug: string) {
-    if (!saveTarget) return;
+  const uploadName = (f: OpenFile) => jobName(f.doc, f.origin?.folder ?? f.name);
+  const hasOpenFile = () => !!openFile;
+
+  async function renderSaveRow() {
+    const el = $('#save-row');
+    el.hidden = !openFile;
+    if (!openFile) return;
+    await whoReady;
+    if (!who || !('email' in who)) {
+      el.innerHTML = `<p class="muted small">${esc(unavailable())}</p>`;
+      return;
+    }
+    const mentioned = openFile.text ? referencedMedia(openFile.text) : [];
+    const added = new Set(extras.map((x) => x.name.toLowerCase()));
+    const missing = mentioned.filter((m) => !added.has(m.toLowerCase()));
+    const summaryText = extras.length ? `${extras.length} added` : '';
+    el.innerHTML = `
+      <div class="save-controls">
+        <button id="save-btn" class="primary" ${uploading ? 'disabled' : ''}>Upload ${esc(uploadName(openFile))}</button>
+      </div>
+      <details id="upload-extras" ${extras.length || missing.length ? 'open' : ''}>
+        <summary>Photos, attachments and note${summaryText ? ` <span class="count">· ${esc(summaryText)}</span>` : ''}</summary>
+        <div class="extras-body">
+          ${extras.length ? `<ul class="extras-list">${extras.map((x, i) => `<li><span class="name">${esc(x.name)}</span><span class="muted">${formatBytes(x.blob.size)}</span><button data-remove="${i}" title="Leave out ${esc(x.name)}" aria-label="Leave out ${esc(x.name)}">×</button></li>`).join('')}</ul>` : ''}
+          ${missing.length ? `<p class="small warn-text">The job mentions ${missing.length} file${missing.length === 1 ? '' : 's'} not added yet: ${missing.slice(0, 6).map(esc).join(', ')}${missing.length > 6 ? '…' : ''}</p>` : ''}
+          <div class="add-row">
+            <label class="add-files button" for="extras-input">Add photos or files</label>
+            ${canPickFolder ? '<label class="add-files button" for="folder-input">Pick a folder</label><input id="folder-input" type="file" webkitdirectory hidden />' : ''}
+          </div>
+          <input id="extras-input" type="file" multiple hidden />
+          <p class="muted small">${canPickFolder ? 'Pick several files, a whole folder, or a .zip of it.' : "Pick several at once: open the job's Files folder, long-press a photo, then ⋮ → Select all. A .zip of the folder works too."} The Trimble .job file can go up as well.</p>
+          <label class="note-label" for="upload-note">Note <span class="muted">(optional)</span></label>
+          <textarea id="upload-note" rows="2" placeholder="What changed on this visit">${esc(noteDraft)}</textarea>
+        </div>
+      </details>
+      <div id="save-status" class="muted"></div>`;
+    el.querySelector('#save-btn')!.addEventListener('click', () => send());
+    el.querySelectorAll<HTMLInputElement>('#extras-input, #folder-input').forEach((picker) => picker.addEventListener('change', async (e) => {
+      const input = e.target as HTMLInputElement;
+      const files = Array.from(input.files ?? []);
+      input.value = '';
+      try {
+        addExtras(await expandZips(files));
+      } catch (err) {
+        $('#save-status').innerHTML = `<span class="error-text">${esc(message(err))}</span>`;
+      }
+    }));
+    el.querySelector<HTMLTextAreaElement>('#upload-note')!.addEventListener('input', (e) => (noteDraft = (e.target as HTMLTextAreaElement).value));
+    el.querySelectorAll<HTMLButtonElement>('[data-remove]').forEach((b) =>
+      b.addEventListener('click', () => {
+        extras.splice(Number(b.dataset.remove), 1);
+        renderSaveRow();
+      }),
+    );
+  }
+  let noteDraft = '';
+
+  async function send() {
+    if (!openFile || uploading) return;
+    const file = openFile;
     const btn = $<HTMLButtonElement>('#save-btn');
     const status = $('#save-status');
+    uploading = true;
     btn.disabled = true;
-    status.textContent = `Uploading to ${slug}…`;
+    status.classList.remove('error-text');
+    status.textContent = 'Checking what needs sending…';
     try {
-      const r = await saveJob(client(slug), saveTarget.text, saveTarget.doc, saveTarget.name);
-      status.innerHTML =
-        r.status === 'unchanged'
-          ? `Already uploaded: ${esc(slug)} has this exact file.`
-          : `Uploaded to <a href="https://github.com/${esc(slug)}/commit/${r.commit}" target="_blank" rel="noopener">${esc(slug)}</a>.`;
-      saveTarget.origin = { repo: slug, path: r.path };
+      const main: UploadItem | undefined = file.text !== undefined
+        ? { name: file.name, blob: new Blob([file.text], { type: /\.rw5$/i.test(file.name) ? 'text/plain' : 'application/xml' }), kind: 'job' }
+        : file.blob && { name: file.name, blob: file.blob, kind: 'job' };
+      const items = extras.filter((x) => !main || x.kind !== 'job' || x.name.toLowerCase() !== main.name.toLowerCase());
+      if (main) items.unshift(main);
+      const result = await upload(
+        {
+          job: uploadName(file),
+          items,
+          main: main && isViewable(main.name) ? main.name : undefined,
+          note: noteDraft,
+          summary: summarize(file.doc),
+          placement: file.doc?.placement as StoredPlacement | undefined,
+        },
+        (sent, total, name) => {
+          status.innerHTML = name
+            ? `Uploading ${esc(name)}… <span class="muted">${formatBytes(sent)} of ${formatBytes(total)}</span><progress max="${total}" value="${sent}"></progress>`
+            : 'Finishing…';
+        },
+      );
+      if (result.status === 'unchanged') status.textContent = 'Already uploaded: nothing has changed since the last upload.';
+      else if (result.status === 'placed') status.textContent = 'Saved where the job sits on the map. The files were already uploaded.';
+      else if (result.status === 'uploaded') {
+        const r = result.record;
+        status.innerHTML = `Uploaded to <span class="key">${esc(r.folder)}/${esc(r.stamp)}/</span>${result.reused ? ` <span class="muted">(${result.reused} file${result.reused === 1 ? ' was' : 's were'} already there)</span>` : ''}`;
+        noteDraft = '';
+        const note = document.querySelector<HTMLTextAreaElement>('#upload-note');
+        if (note) note.value = '';
+        if (r.main && file.text !== undefined) file.origin = { folder: r.folder, stamp: r.stamp, key: r.main, placement: file.doc?.placement };
+      }
       loadedOnce = false; // reload the list next time Jobs is shown
     } catch (e) {
-      const message = (e as Error).message;
-      if (expired(e)) {
-        renderSaveRow();
-        renderSettings();
+      if (e instanceof SignInExpired) {
+        await stash({ then: 'upload', file: { text: file.text, blob: file.blob, name: file.name, origin: file.origin }, extras, note: noteDraft });
+        status.innerHTML = `<span class="error-text">${esc(e.message)}</span> <button class="link" data-act="reload">Sign in again</button>`;
+        status.querySelector('[data-act=reload]')!.addEventListener('click', () => location.reload());
+      } else {
+        status.innerHTML = `<span class="error-text">${esc(message(e))}</span>`;
       }
-      $('#save-status').innerHTML = `<span class="error-text">${esc(message)}</span>`;
     } finally {
+      uploading = false;
       btn.disabled = false;
     }
   }
 
-  /** True when the error means the sign-in is gone, after signing out. */
-  function expired(e: unknown) {
-    if (e instanceof SignInExpired || (e instanceof GitHubError && e.status === 401)) {
-      signOut();
-      pickable = undefined;
-      return true;
-    }
-    return false;
-  }
+  // ------------------------------------------------------------ account
 
-  async function signIn(then: Stash['then']) {
-    await stash({ then, file: saveTarget && { text: saveTarget.text, name: saveTarget.name, origin: saveTarget.origin } });
-    await beginSignIn();
-  }
-
-  // ------------------------------------------------------------ repo picker
-
-  let pickable: Promise<PickableRepo[]> | undefined;
-
-  function renderPicker(
-    el: HTMLElement,
-    opts: { title: string; forUpload: boolean; then: Stash['then']; onPick: (slug: string) => void; onCancel?: () => void },
-  ) {
-    el.className = 'picker';
-    el.innerHTML = `<p class="picker-title">${esc(opts.title)}</p><p class="muted small">Loading your repos…</p>`;
-    pickable ??= listRepos();
-    pickable.then(
-      (list) => {
-        const rows = list.map((r) => {
-          const shown = settings.repos.some((x) => sameRepo(repoSlug(x), r.slug));
-          const disabled = opts.forUpload ? !r.canPush : shown;
-          const note = opts.forUpload ? (r.canPush ? '' : 'read only') : shown ? 'added' : '';
-          return `<li><button data-slug="${esc(r.slug)}" ${disabled ? 'disabled' : ''}>
-            <span class="repo-name"><span class="muted">${esc(r.owner)}/</span>${esc(r.name)}</span>
-            <span class="tag ${r.private ? 'private' : ''}">${r.private ? 'private' : 'public'}</span>${note ? `<span class="muted small">${note}</span>` : ''}
-          </button></li>`;
-        });
-        el.innerHTML = `
-          <p class="picker-title">${esc(opts.title)}</p>
-          ${
-            list.length
-              ? `<ul class="picker-list">${rows.join('')}</ul>
-                 <p class="muted small">Repo not listed? <button class="link" data-act="choose">Give OpenFieldView access to it on GitHub</button></p>`
-              : `<p class="small">OpenFieldView can't see any of your repos yet. Choose which ones it may use on GitHub, then come back here.</p>
-                 <button class="primary github" data-act="choose">${GITHUB_MARK} Choose repos on GitHub</button>`
-          }
-          ${opts.onCancel ? '<div class="actions"><button data-act="cancel">Cancel</button></div>' : ''}`;
-        el.querySelectorAll<HTMLButtonElement>('[data-slug]').forEach((b) => b.addEventListener('click', () => opts.onPick(b.dataset.slug!)));
-        el.querySelector('[data-act=choose]')!.addEventListener('click', () => chooseRepos(opts.then));
-        el.querySelector('[data-act=cancel]')?.addEventListener('click', () => opts.onCancel!());
-      },
-      (e) => {
-        pickable = undefined;
-        const gone = expired(e);
-        el.innerHTML = `<p class="error-text small">${esc((e as Error).message)}</p>
-          <div class="actions"><button data-act="retry">${gone ? 'Sign in again' : 'Try again'}</button></div>`;
-        el.querySelector('[data-act=retry]')!.addEventListener('click', () => (gone ? signIn(opts.then) : renderPicker(el, opts)));
-      },
-    );
-  }
-
-  async function chooseRepos(then: Stash['then']) {
-    await stash({ then, file: saveTarget && { text: saveTarget.text, name: saveTarget.name, origin: saveTarget.origin } });
-    location.assign(chooseReposUrl());
-  }
-
-  // ------------------------------------------------------------ settings
-
-  function renderSettings() {
+  function renderAccount() {
     const body = $('#settings-body');
-    const session = currentSession();
-    const list = settings.repos
-      .map((r) => {
-        const state = repos.find((x) => repoSlug(x.ref) === repoSlug(r));
-        const tag = state?.info ? (state.info.private ? 'private' : 'public') : state?.error ? 'error' : '';
-        return `<li><span>${esc(repoSlug(r))} ${tag ? `<span class="tag ${tag}">${tag}</span>` : ''}</span><button data-remove="${esc(repoSlug(r))}" title="Remove from this list">×</button></li>`;
-      })
-      .join('');
-    const account = session
-      ? `<div class="account">
-          ${session.avatar ? `<img src="${esc(session.avatar)}&s=48" alt="" width="24" height="24" />` : ''}
-          <span>Signed in as <strong>${esc(session.login)}</strong></span>
-          <button class="link" id="sign-out">Sign out</button>
-        </div>`
-      : signInAvailable()
-        ? `<button id="signin-jobs" class="primary github">${GITHUB_MARK} Sign in with GitHub</button>`
-        : `<p class="muted small">GitHub sign-in isn't set up on this site yet.</p>`;
-    body.innerHTML = `
-      ${account}
-      ${list ? `<ul class="repo-list">${list}</ul>` : ''}
-      ${session ? (settingsPickerOpen ? '<div id="settings-picker"></div>' : '<div><button id="add-repo-btn">Add a repo</button></div>') : ''}
-      ${!session && list ? '<p class="muted small">Public repos can be browsed signed out. Sign in for private repos and uploading.</p>' : ''}`;
-    body.querySelector('#signin-jobs')?.addEventListener('click', () => signIn('jobs'));
-    body.querySelector('#sign-out')?.addEventListener('click', () => {
-      signOut();
-      pickable = undefined;
-      settingsPickerOpen = false;
-      renderSettings();
-      renderSaveRow();
-    });
-    body.querySelector('#add-repo-btn')?.addEventListener('click', () => {
-      settingsPickerOpen = true;
-      renderSettings();
-    });
-    const pickerEl = body.querySelector<HTMLElement>('#settings-picker');
-    if (pickerEl) {
-      renderPicker(pickerEl, {
-        title: 'Pick a repo to show its jobs',
-        forUpload: false,
-        then: 'jobs',
-        onPick: (slug) => {
-          addRepo(settings, slug);
-          settingsPickerOpen = false;
-          update();
-        },
-        onCancel: settings.repos.length
-          ? () => {
-              settingsPickerOpen = false;
-              renderSettings();
-            }
-          : undefined,
-      });
+    if (!who) {
+      body.innerHTML = '<p class="muted small">Checking…</p>';
+      return;
     }
-    body.querySelectorAll<HTMLButtonElement>('[data-remove]').forEach((b) =>
-      b.addEventListener('click', () => {
-        settings.repos = settings.repos.filter((r) => repoSlug(r) !== b.dataset.remove);
-        update();
-      }),
-    );
-  }
-
-  function update() {
-    saveSettings(settings);
-    renderSettings();
-    renderSaveRow();
-    refresh();
+    if (!('email' in who)) {
+      body.innerHTML = `<p class="muted small">${esc(unavailable())}</p>`;
+      return;
+    }
+    body.innerHTML = `
+      <div class="account">
+        <span>Signed in as <strong>${esc(who.email)}</strong></span>
+        <a class="link" href="/cdn-cgi/access/logout">Sign out</a>
+      </div>
+      <p class="muted small">Jobs are kept in the OpenFieldView R2 bucket, one folder per job and one folder per upload inside it.</p>
+      <div class="actions"><button id="rebuild-btn">Rebuild the job list</button></div>
+      <p class="muted small">Only needed if index.json or a versions.json was deleted or edited by hand in the bucket.</p>`;
+    body.querySelector('#rebuild-btn')!.addEventListener('click', async (e) => {
+      const b = e.target as HTMLButtonElement;
+      b.disabled = true;
+      setJobsStatus('Rebuilding the job list from the uploads in the bucket…');
+      try {
+        index = await post<JobIndex>('rebuild');
+        setJobsStatus(`Rebuilt: ${index.jobs.length} job${index.jobs.length === 1 ? '' : 's'}.`);
+        render();
+        fitJobs();
+      } catch (err) {
+        if (err instanceof SignInExpired) expiredInJobs();
+        else setJobsStatus(esc(err instanceof ApiError ? err.message : message(err)), true);
+      } finally {
+        b.disabled = false;
+      }
+    });
   }
 
   // ------------------------------------------------------------ views
@@ -625,47 +523,28 @@ export function initJobs({ map, open, isSheet, setSheet, showLines, viewChanged 
     b.addEventListener('click', () => showView(b.dataset.view as 'viewer' | 'jobs')),
   );
 
-  renderSettings();
-  resumeAfterGitHub();
+  whoReady.then(renderAccount);
+  resumeAfterSignIn();
 
-  /** Pick up where the person left off before going to GitHub to sign in or choose repos. */
-  async function resumeAfterGitHub() {
-    let result: Awaited<ReturnType<typeof completeRedirect>>;
-    let error = '';
-    try {
-      result = await completeRedirect();
-    } catch (e) {
-      error = (e as Error).message;
-    }
-    if (!result && !error) return;
-    pickable = undefined;
+  /** Reopen the job that was being uploaded when the sign-in ran out. */
+  async function resumeAfterSignIn() {
     const before = await takeStash();
-    if (before?.file) {
-      const { text, name, origin } = before.file;
-      open(text, name, new TextEncoder().encode(text).length, origin as JobOrigin);
+    if (!before?.file) return;
+    const { text, blob, name, origin } = before.file;
+    noteDraft = before.note ?? '';
+    const restored = (before.extras ?? []).map((x) => new File([x.blob], x.name));
+    if (text !== undefined) open(text, name, new TextEncoder().encode(text).length, origin as JobOrigin, restored);
+    else if (blob) {
+      setOpenFile({ name, blob }, restored);
     }
-    if (before?.then === 'jobs' || (!before?.file && !saveTarget)) {
-      showView('jobs');
-      if (result && !settings.repos.length) settingsPickerOpen = true;
-      ($('#library-settings') as HTMLDetailsElement).open = true;
-      renderSettings();
-      if (error) setJobsStatus(esc(error), true);
-    } else {
-      // Back from choosing repos: show the fresh list straight away.
-      savePickerOpen = result === 'repos-changed';
-      renderSaveRow();
-      if (error) $('#save-status').innerHTML = `<span class="error-text">${esc(error)}</span>`;
-    }
+    $('#save-status').textContent = 'Signed in again. Tap Upload to send it.';
   }
 
-  return { addLayers, handleClick, setOpenFile, showView, isActive: () => active };
+  return { addLayers, handleClick, setOpenFile, addExtras, hasOpenFile, showView, isActive: () => active };
 }
 
 function formatDate(iso: string, time = false) {
-  const d = new Date(iso);
+  const d = new Date(/^\d{4}-\d{2}-\d{2}T\d{6}Z$/.test(iso) ? stampTime(iso) : iso);
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleString(undefined, time ? { dateStyle: 'medium', timeStyle: 'short' } : { dateStyle: 'medium' });
 }
-
-const GITHUB_MARK =
-  '<svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>';

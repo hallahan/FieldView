@@ -9,6 +9,8 @@ import { deleteLibrary, getLibrary, listLibraries, saveLibrary } from './library
 import { initLineMap, LINE_LAYERS } from './linemap';
 import { parseJxl, type JxlDocument, type JxlPoint, type ObservationType } from './jxl';
 import { initJobs, type JobOrigin } from './jobs';
+import { isViewable } from './layout';
+import { expandZips, kindOf } from './upload';
 import { buildLinework, parseCode, type LineFigure, type Linework } from './linework';
 import { lineGroups, linesAtPoint } from './lineprops';
 import { gridFitsProjection, projectGrid, resolveProjection } from './projection';
@@ -126,9 +128,9 @@ map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
 
 const jobs = initJobs({
   map,
-  open: (text, name, size, origin) => {
+  open: (text, name, size, origin, extras) => {
     jobs.showView('viewer');
-    load(text, name, size, undefined, origin);
+    load(text, name, size, undefined, origin, extras);
   },
   isSheet: () => isSheet(),
   setSheet: (expanded) => setSheet(expanded),
@@ -426,11 +428,67 @@ function refreshMap(fit: boolean) {
 
 // ---------------------------------------------------------------- loading
 
-async function loadFile(file: File) {
-  const text = await file.text();
-  if (isLibraryFile(file.name, text)) addLibrary(text, file.name);
-  else load(text, file.name, file.size);
+/**
+ * Open what was picked or dropped. One job (.jxl or .rw5) is shown; a .zip is
+ * opened up first; .fxl files become feature libraries; anything else (photos,
+ * attachments, the Trimble .job) goes up with the job when it's uploaded.
+ */
+async function openFiles(picked: File[]) {
+  if (picked.length === 1 && !/\.(zip|job)$/i.test(picked[0].name) && !isMedia(picked[0].name)) {
+    const [file] = picked;
+    const text = await file.text();
+    if (isLibraryFile(file.name, text)) addLibrary(text, file.name);
+    else load(text, file.name, file.size);
+    return;
+  }
+  let files: File[];
+  try {
+    files = await expandZips(picked);
+  } catch (e) {
+    setStatus((e as Error).message, true);
+    return;
+  }
+  for (const f of files.filter((f) => /\.fxl$/i.test(f.name))) addLibrary(await f.text(), f.name);
+  const rest = files.filter((f) => !/\.fxl$/i.test(f.name));
+  const jobFile = rest.find((f) => isViewable(f.name));
+  if (jobFile) {
+    const others = rest.filter((f) => f !== jobFile);
+    const skipped = others.filter((f) => isViewable(f.name));
+    load(await jobFile.text(), jobFile.name, jobFile.size, undefined, undefined, others.filter((f) => !isViewable(f.name)));
+    if (skipped.length) setStatus(`${$('#status').innerHTML}<br><span class="muted">Left out ${skipped.map((f) => esc(f.name)).join(', ')}: open one job at a time.</span>`);
+    return;
+  }
+  const trimbleJob = rest.find((f) => /\.job$/i.test(f.name));
+  const openName = doc && (doc.job.jobName?.trim() || loaded?.name.replace(/\.[^.]+$/, ''));
+  if (trimbleJob && doc && openName?.toLowerCase() === trimbleJob.name.replace(/\.job$/i, '').toLowerCase()) {
+    jobs.addExtras(rest);
+    setStatus(`Added ${rest.map((f) => esc(f.name)).join(', ')} to go up with this job.`);
+    return;
+  }
+  if (trimbleJob && doc) {
+    setStatus(
+      `<strong>${esc(trimbleJob.name)}</strong> is a different job from the one open (${esc(openName ?? '')}). Open its .jxl with it, or reload the page to upload the .job on its own.`,
+      true,
+    );
+    return;
+  }
+  if (trimbleJob) {
+    jobs.setOpenFile({ name: trimbleJob.name, blob: trimbleJob }, rest.filter((f) => f !== trimbleJob));
+    jobs.showView('viewer');
+    setStatus(
+      `<strong>${esc(trimbleJob.name)}</strong> is a Trimble Access job database, which can't be shown here. You can still upload it. To see the points, export a JobXML (.jxl) on the controller and open that.`,
+    );
+    return;
+  }
+  if (rest.length && jobs.hasOpenFile()) {
+    jobs.addExtras(rest);
+    setStatus(`Added ${rest.length} file${rest.length === 1 ? '' : 's'} to go up with this job.`);
+    return;
+  }
+  if (rest.length) setStatus('Open a .jxl or .rw5 job first, then add photos and attachments to it.', true);
 }
+
+const isMedia = (name: string) => kindOf(name) === 'media' && !/\.(fxl|jxl|rw5|xml|txt|csv)$/i.test(name) && /\.[a-z0-9]{2,5}$/i.test(name);
 
 function isLibraryFile(name: string, text: string) {
   if (/\.fxl$/i.test(name)) return true;
@@ -458,7 +516,7 @@ function rw5Projection(): { input: string; proj4: string } {
  * Parse and show a file. `gridDef` is a user-chosen projection for grid-only
  * points; `origin` is the repo it was opened from.
  */
-function load(text: string, name: string, size: number, gridDef?: { input: string; proj4: string }, origin?: JobOrigin) {
+function load(text: string, name: string, size: number, gridDef?: { input: string; proj4: string }, origin?: JobOrigin, extras: File[] = []) {
   const rw5 = isRw5(text);
   if (!loaded || loaded.text !== text) rw5Units = undefined;
   try {
@@ -474,7 +532,7 @@ function load(text: string, name: string, size: number, gridDef?: { input: strin
     return;
   }
   loaded = { text, name, size, origin };
-  jobs.setOpenFile({ doc, text, name, origin });
+  jobs.setOpenFile({ doc, text, name, origin }, extras);
   selected = undefined;
   selectedLine = undefined;
   back = undefined;
@@ -486,7 +544,7 @@ function load(text: string, name: string, size: number, gridDef?: { input: strin
     entries: [
       ['Name', name],
       ['Size', formatBytes(size)],
-      ...(origin ? [['From', `${origin.repo}${origin.version ? ` at ${origin.version.slice(0, 7)}` : ''}`] as [string, string]] : []),
+      ...(origin ? [['From', `${origin.folder}/${origin.stamp}/${origin.older ? ' (an older upload)' : ''}`] as [string, string]] : []),
     ],
   });
   // A job in assumed coordinates goes where it was placed by hand, unless a
@@ -624,8 +682,8 @@ function setStatus(html: string, error = false) {
 
 $<HTMLInputElement>('#file-input').addEventListener('change', (e) => {
   const input = e.target as HTMLInputElement;
-  const file = input.files?.[0];
-  if (file) loadFile(file);
+  const files = Array.from(input.files ?? []);
+  if (files.length) openFiles(files);
   // Allow re-opening the same file after editing it.
   input.value = '';
 });
@@ -668,8 +726,8 @@ window.addEventListener('drop', (e) => {
   e.preventDefault();
   dragDepth = 0;
   $('#drop-overlay').hidden = true;
-  const file = e.dataTransfer?.files[0];
-  if (file) loadFile(file);
+  const files = Array.from(e.dataTransfer?.files ?? []);
+  if (files.length) openFiles(files);
 });
 
 // ---------------------------------------------------------------- feature library
