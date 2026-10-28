@@ -5,24 +5,29 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "dev:worker": "wrangler dev --var DEV_USER_EMAIL:you@example.com",
+    "build": "tsc --noEmit && tsc -p worker && vite build",
     "preview": "vite preview",
+    "deploy": "npm run build && wrangler deploy",
     "test": "vitest run"
   },
   "dependencies": {
     "@fontsource-variable/inconsolata": "^5.3.0",
     "@fontsource-variable/open-sans": "^5.3.0",
     "@fontsource-variable/source-serif-4": "^5.3.1",
+    "fflate": "^0.8.2",
     "maplibre-gl": "^5.24.0",
     "proj4": "^2.22.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261028.1",
     "@types/geojson": "^7946.0.16",
     "@types/node": "^22.20.5",
     "@types/proj4": "^2.5.6",
     "jsdom": "^26.1.0",
     "typescript": "^5.9.3",
     "vite": "^7.3.7",
-    "vitest": "^3.2.7"
+    "vitest": "^3.2.7",
+    "wrangler": "^4.155.0"
   }
 }

@@ -1,6 +1,6 @@
-// Keeps the open file across the trip to GitHub's sign-in page, which
-// reloads the app. IndexedDB because a job can be bigger than sessionStorage
-// allows.
+// Keeps the open file, and the photos picked to go with it, across a page
+// reload to sign in again when the Cloudflare Access session has run out.
+// IndexedDB because a job and its photos are bigger than sessionStorage allows.
 
 // Its own database, so it never needs a version bump of the FXL library store's.
 const DB = 'openfieldview-stash';
@@ -9,8 +9,10 @@ const ID = 'before-sign-in';
 
 export interface Stash {
   /** What to carry on with once back. */
-  then: 'upload' | 'jobs';
-  file?: { text: string; name: string; origin?: { repo: string; path: string; version?: string } };
+  then: 'upload';
+  file?: { text?: string; blob?: Blob; name: string; origin?: unknown };
+  extras?: { name: string; blob: Blob }[];
+  note?: string;
 }
 
 function open(): Promise<IDBDatabase> {

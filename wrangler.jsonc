@@ -1,0 +1,18 @@
+// The OpenFieldView Worker: the built app plus the upload API, in front of an
+// R2 bucket. Setup and deploy steps: docs/cloudflare-setup.md.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "openfieldview",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    // Any path that isn't a built file, other than /api/, gets the app.
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "openfieldview-jobs" }],
+  // ACCESS_TEAM_DOMAIN and ACCESS_AUD are set in the dashboard (docs/cloudflare-setup.md, step 4); keep them on deploy.
+  "keep_vars": true,
+  "observability": { "enabled": true }
+}

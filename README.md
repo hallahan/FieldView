@@ -2,7 +2,7 @@
 
 A free and open source way to get field data off your data collector, onto a map, and into the cloud, without paying for a SaaS subscription. It reads Trimble JobXML (`.jxl`) and Carlson SurvCE / SurvPC raw data (`.rw5`), and will grow to cover other data collector formats.
 
-Try it at https://hallahan.github.io/OpenFieldView/.
+Try the viewer at https://hallahan.github.io/OpenFieldView/. That copy has no uploads or saved jobs: those need the Cloudflare setup below.
 
 OpenFieldView is a fully client-side web app. Open a `.jxl` or `.rw5` file and you get:
 
@@ -11,7 +11,7 @@ OpenFieldView is a fully client-side web app. Open a `.jxl` or `.rw5` file and y
 - a searchable point list with each point's position, field-captured feature attributes, and every raw attribute in the file
 - metadata about the job: job properties, coordinate system, units, record counts, time span, and bounds
 
-Opening or dropping a file only shows it; it's parsed in the browser. It leaves your machine only if you tap **Upload** to send it to a GitHub repo.
+Opening or dropping a file only shows it; it's parsed in the browser. It leaves your machine only if you tap **Upload** to send it to your OpenFieldView server.
 
 ## Carlson raw data (RW5)
 
@@ -45,22 +45,27 @@ A point's properties list the lines through it in the same way. A tap within a f
 
 Grid distance is horizontal, between the points' grid coordinates. Ground distance is horizontal too, worked out the way Trimble Access does it: the distance on the ellipsoid between the points' latitudes and longitudes, scaled up to their average height above the ellipsoid. That's grid ÷ a combined scale factor for each line, so it follows the ground's height across the job instead of a single project height. Where points have no latitude, longitude and ellipsoid height (total station shots in an RW5 file, say), the job's own scale factor is used: the combined scale factor in a JobXML file, or SF in an RW5 file's MO record. Slope distance adds the rise and fall between points to the ground distance.
 
-## Uploading jobs to GitHub
+## Uploading jobs
 
-The **Jobs** tab keeps jobs in one or more GitHub repos, public or private, and shows them as a list and as pins on the map. From a job you can open it in the viewer, download it, or open any earlier version.
+The **Jobs** tab lists every uploaded job and shows it as a pin on the map. From a job you can open it in the viewer, download it, or open, download and look through any earlier upload with its photos.
 
-A data repo looks like this:
+Uploads go to a Cloudflare R2 bucket through a small Cloudflare Worker ([`worker/`](worker/)), and the whole site sits behind Cloudflare Access: crew sign in with their email and a one-time code, nothing to install and no account to make. Whoever hosts the site sets it up once by following [docs/cloudflare-setup.md](docs/cloudflare-setup.md).
+
+To upload, open a job and tap **Upload**. Under **Photos, attachments and note** you can add the photos the job refers to, the Trimble `.job` file, or anything else, picked several at a time or as a `.zip` of the job's folder (Android can't pick a folder), plus a note about the visit. Picking or dropping the job and its photos together works too.
+
+The bucket is laid out to be read by a person, with no database:
 
 ```
-index.geojson                         one Point per job at its centroid, with upload dates and counts
-jobs/<jobName>/<jobName>.jxl          the latest upload of each job (.rw5 for Carlson jobs)
+index.json                                    every job: name, centroid, latest upload
+<Job name>/versions.json                      every upload of the job, newest first
+<Job name>/2026-10-28T213627Z/<Job>.jxl       one upload, in a folder named by its UTC time
+<Job name>/2026-10-28T213627Z/<Job>.job       ...with the Trimble .job, if it was sent
+<Job name>/2026-10-28T213627Z/upload.json     who uploaded it, when, the note, and every file with its size and SHA-256
+<Job name>/media/IMG_0001.jpg                 photos and attachments, shared by all of the job's uploads
+<Job name>/placement.json                     where a job in assumed coordinates was placed on the map
 ```
 
-Uploading the same job again overwrites its file, so every field visit is a commit and git history holds the versions. The JXL and the updated index are written in one commit, and an upload identical to the last one is skipped.
-
-To upload, tap **Sign in with GitHub to upload**, approve OpenFieldView on GitHub, and pick a repo from the list. Nothing is typed. The repo is remembered, so after that it's one **Upload** button (with **Change** to pick another). OpenFieldView signs in through a GitHub App, so it only sees the repos you choose to give it; **Give OpenFieldView access to it on GitHub** under the list adds more. More repos can be shown on the Jobs tab under **GitHub account and repos**. Public repos there can be browsed without signing in.
-
-Sign-in needs a one-time setup by whoever hosts the site: a GitHub App and a small Cloudflare Worker ([`worker/auth.js`](worker/auth.js)) that swaps GitHub's sign-in code for a token, since that step needs a secret a static site can't hold. Step-by-step instructions are in [docs/github-sign-in.md](docs/github-sign-in.md).
+Uploading a job again makes a new time folder; nothing is ever overwritten. An upload identical to the last one is skipped, and photos already in the bucket aren't sent again. A changed photo with the same name is kept beside the old one as `IMG_0001 (2026-10-28T213627Z).jpg`. Files go up one at a time and the upload only appears once `upload.json` is written, so an upload cut off part way never shows half done. `index.json` and the `versions.json` files can be rebuilt from the `upload.json` files at any time (Jobs → Account → **Rebuild the job list**).
 
 ## Positions
 
@@ -98,10 +103,13 @@ Grid values are shown in the job's distance units (US survey feet, international
 
 ```sh
 npm install
-npm run dev     # local dev server
-npm test        # parser and storage tests
-npm run build   # production build into dist/
+npm run dev          # the app on a local dev server
+npm run dev:worker   # in a second terminal: the upload API with a local R2 bucket, signed in as you@example.com
+npm test             # parser, storage and sign-in tests
+npm run build        # production build into dist/
 ```
+
+`npm run dev` passes `/api/` to `npm run dev:worker`. Or run `npm run build && npm run dev:worker` and open http://localhost:8787 for the whole site as it runs on Cloudflare.
 
 ## License
 
@@ -109,4 +117,6 @@ MIT. See [LICENSE](LICENSE).
 
 ## Deployment
 
-`.github/workflows/deploy.yml` builds and deploys to GitHub Pages on every push to `main`. In the repo settings, set **Pages → Source** to **GitHub Actions**.
+The full site (viewer, uploads and saved jobs, behind Cloudflare Access) runs as one Cloudflare Worker, which Cloudflare builds and deploys from `main` on every push. Setup: [docs/cloudflare-setup.md](docs/cloudflare-setup.md).
+
+`.github/workflows/deploy.yml` also runs the tests on every pull request and puts the viewer on its own on GitHub Pages from `main`. In the repo settings, **Pages → Source** is **GitHub Actions**.

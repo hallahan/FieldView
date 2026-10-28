@@ -249,14 +249,13 @@ button.primary { background: var(--accent); color: #fff; border: 1px solid var(-
 button:disabled { opacity: .6; cursor: default; }
 .save-controls { flex-wrap: nowrap; }
 #save-btn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#change-repo { flex-shrink: 0; }
 #save-row { display: flex; flex-direction: column; gap: 6px; }
 #save-status:empty, #jobs-status:empty { display: none; }
 #jobs-status { padding: 8px 10px; background: var(--panel); border-radius: 6px; }
 #jobs-status.error { background: #ffe3e3; color: #c92a2a; }
 .error-text { color: #e03131; }
 .small { font-size: 12px; margin: 0; }
-#job-list, .repo-list, .version-list { list-style: none; margin: 0; padding: 0; }
+#job-list, .version-list { list-style: none; margin: 0; padding: 0; }
 #job-list li {
   display: flex; flex-direction: column; gap: 2px; padding: 8px 6px;
   border-bottom: 1px solid var(--border); cursor: pointer;
@@ -269,32 +268,48 @@ button:disabled { opacity: .6; cursor: default; }
 #job-detail details { margin: 0; }
 #job-detail p { margin: 0; }
 a { color: var(--accent); }
-.version-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.version-list > li { padding: 8px 0; border-bottom: 1px solid var(--border); }
 .version-list .muted { font-size: 12px; }
 .version-list .actions { flex-wrap: nowrap; flex-shrink: 0; }
-.repo-list li { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
-.repo-list button { background: none; border: none; font-size: 18px; color: var(--muted); }
 .tag { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--border); color: var(--fg); }
-.tag.private { background: #fff3bf; color: #5c3c00; }
-.tag.error { background: #ffe3e3; color: #c92a2a; }
 #library-settings summary { padding: 6px 0; }
 #settings-body { display: flex; flex-direction: column; gap: 10px; padding-top: 8px; }
-button.github { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 14px; border-radius: 6px; font-weight: 600; }
-#save-row > button.github, #settings-body > button.github { align-self: stretch; }
-.account { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.account img { border-radius: 50%; }
-.account .link { margin-left: auto; }
-.picker { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
-.picker p { margin: 0; }
-.picker-title { font-weight: 600; }
-.picker-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 50vh; overflow-y: auto; }
-.picker-list button {
-  display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; text-align: left; font: inherit;
-  color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+#settings-body p { margin: 0; }
+.account { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; overflow-wrap: anywhere; }
+.account .link { margin-left: auto; font-family: var(--font-sans); }
+/* A link that does what a button does, like a download. */
+a.button, label.button {
+  display: inline-flex; align-items: center; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg); color: var(--fg); font: 400 14px var(--font-sans); text-decoration: none; cursor: pointer;
 }
-.picker-list button:hover:not(:disabled) { border-color: var(--accent); }
-.picker-list .repo-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-#add-repo-btn, .picker .actions button { padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); }
+.key { font-family: var(--font-mono); overflow-wrap: anywhere; }
+#upload-extras { border: 1px solid var(--border); border-radius: 6px; padding: 0 10px; }
+#upload-extras > summary { padding: 8px 0; font-size: 14px; }
+#upload-extras .count { color: var(--fg); }
+.extras-body { display: flex; flex-direction: column; gap: 8px; padding-bottom: 10px; }
+.extras-body p { margin: 0; }
+.extras-body .add-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.extras-list { list-style: none; margin: 0; padding: 0; max-height: 30vh; overflow-y: auto; }
+.extras-list li { display: flex; align-items: center; gap: 8px; padding: 2px 0; border-bottom: 1px solid var(--border); font-family: var(--font-sans); font-size: 14px; }
+.extras-list .name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-family: var(--font-mono); }
+.extras-list .muted { font-size: 12px; flex-shrink: 0; }
+.extras-list button { flex-shrink: 0; background: none; border: none; font-size: 18px; color: var(--muted); padding: 0 4px; }
+.note-label { font: 600 12px var(--font-sans); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+textarea {
+  width: 100%; box-sizing: border-box; padding: 6px 8px; font: 15px var(--font-sans); color: var(--fg);
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px; resize: vertical;
+}
+#save-status progress { display: block; width: 100%; margin-top: 4px; accent-color: var(--accent); }
+.version-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.version-list .note { margin: 4px 0 0; font-style: italic; }
+.version-list .files { list-style: none; margin: 4px 0 0; padding: 0; font: 13px var(--font-sans); }
+.version-list .files li { display: flex; align-items: baseline; gap: 6px; padding: 2px 0; }
+.version-list .files a:first-child { min-width: 0; overflow-wrap: anywhere; }
+.version-list .files .muted { white-space: nowrap; }
+#job-detail .detail-head { position: static; flex-direction: row; align-items: flex-start; justify-content: space-between; gap: 8px; margin: 0; padding: 0; background: none; border: none; }
+#job-detail .close { flex-shrink: 0; width: 36px; height: 36px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font-size: 20px; line-height: 1; }
+.version-list .files .dl { margin-left: auto; text-decoration: none; padding: 0 4px; }
+.version-list .tag { font-size: 11px; }
 .map-error { margin: 40px auto; max-width: 420px; padding: 16px; text-align: center; color: var(--muted); }
 
 /* Touch screens (phones, the controller): bigger targets, no zoom-on-focus. */
@@ -320,11 +335,19 @@ button.github { display: inline-flex; align-items: center; justify-content: cent
   details.group > summary { padding: 12px 0 6px; }
   .row-link { font-size: 16px; }
   .maplibregl-ctrl-group button { width: 40px; height: 40px; }
-  #views button, .actions button, .save-controls button, button.github, #add-repo-btn, .picker .actions button, select { padding: 11px 14px; }
-  .picker-list button { padding: 13px 12px; }
+  #views button, .actions button, .save-controls button, a.button, label.button, select { padding: 11px 14px; }
+  a.button, label.button { font-size: 16px; }
+  #upload-extras > summary { padding: 12px 0; font-size: 15px; }
+  textarea { font-size: 16px; padding: 10px; }
+  .extras-list li { padding: 4px 0; font-size: 15px; }
+  .extras-list button { font-size: 26px; padding: 0 8px; }
   #job-list li { padding: 12px 6px; }
   .version-list button { padding: 10px 12px; }
-  .repo-list button { font-size: 26px; padding: 0 8px; }
+  .version-list .files { font-size: 15px; }
+  .version-list .files li { padding: 7px 0; }
+  .version-list .files .dl { font-size: 20px; padding: 0 10px; }
+  .account .link { padding: 8px 0; }
+  #job-detail .close { width: 44px; height: 44px; }
 }
 
 /* Small screens: map on top, panel below as a resizable sheet. The panel
