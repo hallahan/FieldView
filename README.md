@@ -1,10 +1,10 @@
 # OpenFieldView
 
-A free and open source way to get field data off your data collector, onto a map, and into the cloud, without paying for a SaaS subscription. It reads Trimble JobXML (`.jxl`) and Carlson SurvCE / SurvPC raw data (`.rw5`), and will grow to cover other data collector formats.
+A free and open source way to get field data off your data collector, onto a map, and into the cloud, without paying for a SaaS subscription. It reads Trimble JobXML (`.jxl`), Trimble Access job files (`.job`, see [docs/job-format.md](docs/job-format.md)) and Carlson SurvCE / SurvPC raw data (`.rw5`), and will grow to cover other data collector formats.
 
 Try it at https://hallahan.github.io/OpenFieldView/.
 
-OpenFieldView is a fully client-side web app. Open a `.jxl` or `.rw5` file and you get:
+OpenFieldView is a fully client-side web app. Open a `.jxl`, `.job` or `.rw5` file and you get:
 
 - its points on a MapLibre map (streets or satellite basemap), coloured by code
 - linework built from the points' feature codes, styled from a Trimble feature library (`.fxl`) if you add one, with each line's properties a tap away

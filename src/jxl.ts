@@ -75,7 +75,7 @@ export interface JxlDocument {
   /** Attributes of the <JOBFile> root: jobName, TimeStamp, controllerSerialNumber, ... */
   job: Attrs;
   /** Which kind of file this came from. Missing means JobXML. */
-  format?: 'jxl' | 'rw5';
+  format?: 'jxl' | 'rw5' | 'job';
   /** Where a job in assumed coordinates was placed on the map by hand. */
   placement?: Placement;
 }
