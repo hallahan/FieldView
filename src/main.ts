@@ -12,6 +12,7 @@ import { initJobs, type JobOrigin } from './jobs';
 import { buildLinework, parseCode, type LineFigure, type Linework } from './linework';
 import { lineGroups, linesAtPoint } from './lineprops';
 import { gridFitsProjection, projectGrid, resolveProjection } from './projection';
+import { isJob, jobToJxl } from './job';
 import { isRw5, parseRw5, UNIT_LABELS, type Rw5Units } from './rw5';
 import { featureGroups } from './featureprops';
 import { initLocalGrid, localStyle } from './localgrid';
@@ -427,7 +428,17 @@ function refreshMap(fit: boolean) {
 // ---------------------------------------------------------------- loading
 
 async function loadFile(file: File) {
-  const text = await file.text();
+  // A binary Trimble Access job is read as the JobXML it translates to.
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  if (isJob(bytes)) {
+    try {
+      load(jobToJxl(bytes), file.name, file.size);
+    } catch (e) {
+      setStatus((e as Error).message, true);
+    }
+    return;
+  }
+  const text = new TextDecoder().decode(bytes);
   if (isLibraryFile(file.name, text)) addLibrary(text, file.name);
   else load(text, file.name, file.size);
 }
@@ -1214,7 +1225,7 @@ const pointers = new Set<number>();
 
 /** The job's own name, so every version of it opened from a repo shares its settings. */
 function jobKey() {
-  return doc?.job.jobName || (loaded?.name ?? '').replace(/(_[0-9a-f]{7})?\.(jxl|rw5)$/i, '');
+  return doc?.job.jobName || (loaded?.name ?? '').replace(/(_[0-9a-f]{7})?\.(jxl|rw5|job)$/i, '');
 }
 
 function offsetKey() {
